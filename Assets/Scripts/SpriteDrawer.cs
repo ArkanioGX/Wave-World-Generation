@@ -3,15 +3,14 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Assertions;
 
+[RequireComponent(typeof(SpriteCreator))]
 public class SpriteDrawer : MonoBehaviour
 {
-    Camera camera;
-    public Color color1;
-    public Color color2;
+    private Camera cameraMain;
     // Start is called before the first frame update
     void Start()
     {
-        camera = Camera.main;
+        cameraMain = Camera.main;
         //GetComponent<SpriteCreator>().Fill(color2);
     }
 
@@ -19,11 +18,11 @@ public class SpriteDrawer : MonoBehaviour
     void Update()
     {
         RaycastHit hit;
-        if (camera == null)
+        if (cameraMain == null)
         {
-            camera = Camera.main; 
+            cameraMain = Camera.main; 
         }
-        Ray ray = camera.ScreenPointToRay(Input.mousePosition);
+        Ray ray = cameraMain.ScreenPointToRay(Input.mousePosition);
 
         if (Physics.Raycast(ray, out hit))
         {
@@ -37,19 +36,17 @@ public class SpriteDrawer : MonoBehaviour
             Vector2Int spritePos = sc.WorldToSpritePos(hit.point);
             if (Input.GetMouseButton(0))
             {
-                sc.SetPixel(spritePos.x, spritePos.y, color1);
-                sc.Apply();
+                sc.grid.SetPixelAt(spritePos.x, spritePos.y, 1);
             }
             if (Input.GetMouseButton(1))
             {
-                sc.SetPixel(spritePos.x, spritePos.y, color2);
-                sc.Apply();
+                sc.grid.SetPixelAt(spritePos.x, spritePos.y, 0);
             }
             if (Input.GetMouseButtonDown(2))
             {
-                sc.Fill(color2);
-                sc.Apply();
+                sc.grid.Fill(0);
             }
+            sc.ApplyChanges();
         }
     }
 }

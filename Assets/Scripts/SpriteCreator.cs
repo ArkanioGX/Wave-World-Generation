@@ -2,55 +2,77 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+
+
 [AddComponentMenu("SpriteDisplayer")]
 public class SpriteCreator : MonoBehaviour
 {
-    private Texture2D displayTexture;
-    private Sprite displaySprite;
+    [HideInInspector]
+    public WaveFunctionGrid2D grid;
     private SpriteRenderer spriteRenderer;
     private BoxCollider boxCollider;
     [SerializeField]
-    private Color baseColor;
+    private Color[] ColorToUse;
     [SerializeField]
     private float sizeModifier;
     [SerializeField]
     private Vector2Int textureSize = new Vector2Int(32, 32);
     [SerializeField]
     private FilterMode currentFilter = FilterMode.Point;
-    [SerializeField]
-    private GameObject sphereDebug;
     // Start is called before the first frame update
+    private void Awake()
+    {
+        
+        if (grid == null)
+        {
+            createGrid();
+        }
+       
+    }
+
     void Start()
     {
         spriteRenderer = GetComponent<SpriteRenderer>();
         boxCollider = GetComponent<BoxCollider>();
-       // boxCollider.size = new Vector3(textureSize.x, textureSize.y, 0.01f);
+        spriteRenderer.sprite = grid.GetSprite();
+        ApplyChanges();
+        boxCollider.size = new Vector3(textureSize.x/100.0f, textureSize.y/100.0f, 0.01f);
         transform.localScale = Vector3.one*(sizeModifier*(128.0f/textureSize.x));
-        displayTexture = new Texture2D(textureSize.x,textureSize.y);
-        displayTexture.filterMode = currentFilter;
-        displayTexture.wrapMode = TextureWrapMode.Clamp;
-        Fill(baseColor);
-        Apply();
     }
 
-    public void SetPixel(int x, int y, Color newColor)
+    public WaveFunctionGrid2D createGrid()
     {
-        displayTexture.SetPixel(x, y, newColor);
+        grid = new WaveFunctionGrid2D(textureSize, getColors());
+        return grid;
     }
-    public void Fill(Color newColor)
+
+    public WaveFunctionGrid2D getGrid()
     {
-        for (int x = 0; x < displayTexture.width; x++) {
-            for (int y = 0; y < displayTexture.height; y++) {
-                SetPixel(x,y, newColor);
-            }
+        if (grid == null)
+        {
+            return createGrid();
         }
+        return grid;
     }
 
-    public void Apply()
+    public Color[] getColors()
     {
-        displayTexture.Apply();
-        displaySprite = Sprite.Create(displayTexture, new Rect(0, 0, displayTexture.width, displayTexture.height), new Vector2(0.5f, 0.5f));
-        spriteRenderer.sprite = displaySprite;
+        if (ColorToUse.Length < 2)
+        {
+            string warningstr = "Not enough color set in " + gameObject.name;
+            Debug.LogWarning(warningstr);
+            ColorToUse = new Color[2];
+            ColorToUse[0] = Color.magenta;
+            ColorToUse[1] = Color.blue;
+        }
+        return ColorToUse;
+    }
+
+    public void ApplyChanges()
+    {
+       if (grid.updateSprite())
+            spriteRenderer.sprite = grid.GetSprite();
+
     }
 
     /// <summary>
@@ -61,14 +83,12 @@ public class SpriteCreator : MonoBehaviour
     public Vector2Int WorldToSpritePos(Vector3 pos)
     {
         Vector3 ITPos = transform.InverseTransformPoint(pos);
-        Debug.Log(displayTexture.width / 2);
         Vector2Int gridPos = new Vector2Int(
-            (int)((displayTexture.width/2.0f) + (ITPos.x*100.0f)),
-            (int)((displayTexture.height / 2.0f) + (ITPos.y * 100.0f)));
+            (int)((grid.size.x/2.0f) + (ITPos.x*100.0f)),
+            (int)((grid.size.y / 2.0f) + (ITPos.y * 100.0f)));
         gridPos = new Vector2Int(
-            Mathf.Clamp(gridPos.x, 0, displayTexture.width),
-            Mathf.Clamp(gridPos.y, 0, displayTexture.height));
-        Debug.Log(gridPos);
+            Mathf.Clamp(gridPos.x, 0, grid.size.x),
+            Mathf.Clamp(gridPos.y, 0, grid.size.y));
         return gridPos;
     }
 }
