@@ -17,15 +17,18 @@ public class SpriteCreator : MonoBehaviour
     private Vector2Int textureSize = new Vector2Int(32, 32);
     [SerializeField]
     private FilterMode currentFilter = FilterMode.Point;
+    [SerializeField]
+    private GameObject sphereDebug;
     // Start is called before the first frame update
     void Start()
     {
         spriteRenderer = GetComponent<SpriteRenderer>();
         boxCollider = GetComponent<BoxCollider>();
-        boxCollider.size = new Vector3(textureSize.x, textureSize.y, 0.01f);
+       // boxCollider.size = new Vector3(textureSize.x, textureSize.y, 0.01f);
         transform.localScale = Vector3.one*(sizeModifier*(128.0f/textureSize.x));
         displayTexture = new Texture2D(textureSize.x,textureSize.y);
         displayTexture.filterMode = currentFilter;
+        displayTexture.wrapMode = TextureWrapMode.Clamp;
         Fill(baseColor);
         Apply();
     }
@@ -50,19 +53,22 @@ public class SpriteCreator : MonoBehaviour
         spriteRenderer.sprite = displaySprite;
     }
 
+    /// <summary>
+    /// Compute The world pos to the sprite position
+    /// </summary>
+    /// <param name="pos">World Position to convert</param>
+    /// <returns>Sprite Position</returns>
     public Vector2Int WorldToSpritePos(Vector3 pos)
     {
-        pos = transform.InverseTransformPoint(pos);
-        //Debug.Log(pos);
-        Vector3 fwdFromCenterPoint =  pos - boxCollider.center;
-        fwdFromCenterPoint = transform.rotation * fwdFromCenterPoint;
-        fwdFromCenterPoint = new Vector3(fwdFromCenterPoint.x/(boxCollider.size.x),fwdFromCenterPoint .y / (boxCollider.size.y), 0);
+        Vector3 ITPos = transform.InverseTransformPoint(pos);
+        Debug.Log(displayTexture.width / 2);
         Vector2Int gridPos = new Vector2Int(
-            (displayTexture.width/2) + Mathf.RoundToInt(pos.x*100),
-            (displayTexture.height / 2) + Mathf.RoundToInt(pos.y *100));
+            (int)((displayTexture.width/2.0f) + (ITPos.x*100.0f)),
+            (int)((displayTexture.height / 2.0f) + (ITPos.y * 100.0f)));
         gridPos = new Vector2Int(
             Mathf.Clamp(gridPos.x, 0, displayTexture.width),
             Mathf.Clamp(gridPos.y, 0, displayTexture.height));
+        Debug.Log(gridPos);
         return gridPos;
     }
 }

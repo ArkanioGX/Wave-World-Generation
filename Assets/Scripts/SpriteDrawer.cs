@@ -27,11 +27,11 @@ public class SpriteDrawer : MonoBehaviour
 
         if (Physics.Raycast(ray, out hit))
         {
-
             if (hit.collider.gameObject != gameObject)
             {
                 return;
             }
+                
 
             SpriteCreator sc = hit.collider.gameObject.GetComponent<SpriteCreator>();
             Vector2Int spritePos = sc.WorldToSpritePos(hit.point);
