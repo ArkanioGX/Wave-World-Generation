@@ -1,0 +1,2 @@
+Difficultie :
+Algorithm not finding any compatibility for a pixel resulting in a incomplete image

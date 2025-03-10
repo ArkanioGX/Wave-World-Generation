@@ -44,7 +44,7 @@ public class SpriteDrawer : MonoBehaviour
             }
             if (Input.GetMouseButtonDown(2))
             {
-                sc.grid.Fill(0);
+                sc.grid.SetPixelAt(spritePos.x, spritePos.y, 2);
             }
             sc.ApplyChanges();
         }

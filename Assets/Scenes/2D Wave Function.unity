@@ -1118,7 +1118,6 @@ MonoBehaviour:
   ColorToUse: []
   sizeModifier: 10
   textureSize: {x: 24, y: 24}
-  currentFilter: 0
 --- !u!212 &1352728684
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -1234,9 +1233,9 @@ MonoBehaviour:
   ColorToUse:
   - {r: 1, g: 1, b: 1, a: 1}
   - {r: 0, g: 0, b: 0, a: 1}
+  - {r: 0.4716981, g: 0.4716981, b: 0.4716981, a: 1}
   sizeModifier: 10
-  textureSize: {x: 9, y: 9}
-  currentFilter: 0
+  textureSize: {x: 16, y: 16}
 --- !u!212 &1385354149
 SpriteRenderer:
   m_ObjectHideFlags: 0

@@ -17,8 +17,6 @@ public class SpriteCreator : MonoBehaviour
     private float sizeModifier;
     [SerializeField]
     private Vector2Int textureSize = new Vector2Int(32, 32);
-    [SerializeField]
-    private FilterMode currentFilter = FilterMode.Point;
     // Start is called before the first frame update
     private void Awake()
     {
