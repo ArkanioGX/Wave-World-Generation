@@ -1,12 +1,9 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using Unity.VisualScripting;
-using UnityEditorInternal;
 using UnityEngine;
-using UnityEngine.Analytics;
 using UnityEngine.Events;
-using UnityEngine.Windows;
+using UnityEngine.UIElements;
 
 
 
@@ -25,18 +22,21 @@ public class WaveFunctionGrid2D
     public Color[] colors;
     public int maxID = 10;
 
+    public bool tileRotMirror = false;
+
     List<EntropyTile> posToDo;
     Dictionary<int, List<WaveTile2D>> tiles;
+    bool forceStop = false;
 
     private struct EntropyTile
     {
         public List<int> compatibleList;
         public Vector2Int pos;
-        
+
 
     }
 
-    public WaveFunctionGrid2D( Vector2Int newSize, Color[] newColors)
+    public WaveFunctionGrid2D(Vector2Int newSize, Color[] newColors)
     {
         colors = newColors;
         size = newSize;
@@ -44,9 +44,52 @@ public class WaveFunctionGrid2D
         init();
     }
 
+    public WaveFunctionGrid2D(Sprite sprt)
+    {
+        updateSpriteEvt = new UnityEvent();
+        getContentFromSprite(sprt);
+        posToDo = new List<EntropyTile>();
+        maxID = colors.Length;
+
+
+    }
+
+    private void getContentFromSprite(Sprite sprt)
+    {
+        texture = sprt.texture;
+        size = new Vector2Int(texture.width, texture.height);
+
+        gridContent = new int[size.x, size.y];
+        List<Color> colorsInTexture = new List<Color>();
+
+        for (int x = 0; x < size.x; x++)
+        {
+            for (int y = 0; y < size.y; y++)
+            {
+                Color currentCol = texture.GetPixel(x, y);
+                int id = 0;
+                for (id = 0; id < colorsInTexture.Count; id++)
+                {
+                    if (currentCol == colorsInTexture[id])
+                    {
+                        gridContent[x, y] = id;
+                        break;
+                    }
+                }
+                if (id == colorsInTexture.Count)
+                {
+                    colorsInTexture.Add(currentCol);
+                    gridContent[x, y] = id;
+                }
+
+            }
+        }
+        colors = colorsInTexture.ToArray();
+    }
+
     private int[,] getGroupAt(Vector2Int center, int size)
     {
-        int[,] group = new int[size,size];
+        int[,] group = new int[size, size];
         int min = -Mathf.FloorToInt(TILESIZE / 2);
         int max = Mathf.FloorToInt(TILESIZE / 2);
         for (int i = min; i <= max; i++)
@@ -65,14 +108,14 @@ public class WaveFunctionGrid2D
         {
             for (int y = 0; y < texture.height; y++)
             {
-                SetPixelAt(x, y, gridContent[x,y]);
+                SetPixelAt(x, y, gridContent[x, y]);
             }
         }
     }
 
     public void setColors(Color[] newColors)
     {
-        colors=newColors;
+        colors = newColors;
         refreshColor();
     }
 
@@ -82,7 +125,8 @@ public class WaveFunctionGrid2D
         texture.filterMode = FilterMode.Point;
         texture.wrapMode = TextureWrapMode.Clamp;
         gridContent = new int[size.x, size.y];
-        posToDo = new List<EntropyTile> ();
+        posToDo = new List<EntropyTile>();
+        maxID = colors.Length;
 
         Fill(0);
         updateSprite();
@@ -99,12 +143,25 @@ public class WaveFunctionGrid2D
         int clampedID = Mathf.Clamp(newID, 0, colors.Length - 1);
         x = Mathf.Clamp(x, 0, size.x - 1);
         y = Mathf.Clamp(y, 0, size.y - 1);
-        gridContent[x,y] = newID;
+        gridContent[x, y] = newID;
         Color color = colors[clampedID];
 
         texture.SetPixel(x, y, color);
-        if (newID == -2) { texture.SetPixel(x, y, Color.red); }
+        if (newID == -2) { texture.SetPixel(x, y, mixCompatibleColor(x, y)); }
+        else if (newID == -3) { texture.SetPixel(x, y, Color.red); }
         updateSpriteEvt.Invoke();
+    }
+
+    private Color mixCompatibleColor(int x, int y)
+    {
+        List<int> idList = getListOfCompatible(new Vector2Int(x, y), tiles);
+        int colorN = idList.Count;
+        Color c = Color.black;
+        foreach (int id in idList)
+        {
+            c += colors[id];
+        }
+        return (c / colorN);
     }
 
     public void Fill(int id)
@@ -145,14 +202,13 @@ public class WaveFunctionGrid2D
 
     public int GetTileAt(Vector2Int pos)
     {
-        if (pos.x <  0 || pos.y < 0 || pos.x >= size.x || pos.y >= size.y ) return -1;
+        if (pos.x < 0 || pos.y < 0 || pos.x >= size.x || pos.y >= size.y) return -1;
         return gridContent[pos.x, pos.y];
     }
 
     public void launchWaveFunction(WaveFunctionGrid2D input)
     {
-        //Reset grid with Any (-2) Tile
-        Fill(-2);
+
         //Set the colors
         setColors(input.colors);
 
@@ -168,35 +224,65 @@ public class WaveFunctionGrid2D
             for (int y = 0; y < input.gridContent.GetLength(1); y++)
             {
                 int[,] tileContent = new int[TILESIZE, TILESIZE];
-                int min = -Mathf.FloorToInt(TILESIZE/2);
+                int min = -Mathf.FloorToInt(TILESIZE / 2);
                 int max = Mathf.FloorToInt(TILESIZE / 2);
 
-                for (int i = min ; i <= max; i++)
+                for (int i = min; i <= max; i++)
                 {
                     for (int j = min; j <= max; j++)
                     {
-                        tileContent[i -min, j - min] = input.GetTileAt(new Vector2Int(x + i, y + j));
+                        tileContent[i - min, j - min] = input.GetTileAt(new Vector2Int(x + i, y + j));
                     }
                 }
                 WaveTile2D currentTile = new WaveTile2D(tileContent);
-                bool existInList = false;
+                bool existInList = isCurrentTileInList(currentTile);
                 //Check if it exist already in the list
-                foreach (WaveTile2D tile in tiles[currentTile.getCenter()])
-                {
-                    if (tile == currentTile)
-                    {
-                        existInList = true;
-                        break;
-                    }
-                }
+
                 if (!existInList)
                 {
+
                     tiles[currentTile.getCenter()].Add(currentTile);
+                    if (tileRotMirror)
+                    {
+                        //Rotate by 90°
+                        WaveTile2D nTile = new WaveTile2D(tileContent);
+                        nTile.Rotate(1);
+                        if (!isCurrentTileInList(nTile)) { tiles[currentTile.getCenter()].Add(nTile); }
+
+
+                        //Rotate by 270°
+                        nTile = new WaveTile2D(tileContent);
+                        nTile.Rotate(3);
+                        if (!isCurrentTileInList(nTile)) { tiles[currentTile.getCenter()].Add(nTile); }
+
+                        //Mirror in X
+                        nTile = new WaveTile2D(tileContent);
+                        nTile.Mirror(true, false);
+                        if (!isCurrentTileInList(nTile)) { tiles[currentTile.getCenter()].Add(nTile); }
+
+                        //Mirror in Y
+                        nTile = new WaveTile2D(tileContent);
+                        nTile.Mirror(false, true);
+                        if (!isCurrentTileInList(nTile)) { tiles[currentTile.getCenter()].Add(nTile); }
+
+                        //Mirror in X and Y (same as rotate by 180°)
+                        nTile = new WaveTile2D(tileContent);
+                        nTile.Mirror(true, true);
+                        if (!isCurrentTileInList(nTile)) { tiles[currentTile.getCenter()].Add(nTile); }
+                    }
+
                 }
             }
         }
+
+        //Reset grid with Any (-2) Tile
+        Fill(-2);
+
+        //Remove force stop
+        forceStop = false;
+
         //Get Random Start Pos
-        Vector2Int start = new Vector2Int(UnityEngine.Random.Range(0,size.x-1), UnityEngine.Random.Range(0,size.y-1));
+        Vector2Int start = new Vector2Int(UnityEngine.Random.Range(0, size.x - 1), UnityEngine.Random.Range(0, size.y - 1));
 
         posToDo = new List<EntropyTile>();
         for (int x = 0; x < gridContent.GetLength(0); x++)
@@ -209,15 +295,27 @@ public class WaveFunctionGrid2D
                 posToDo.Add(value);
             }
         }
-        
 
+
+    }
+
+    public bool isCurrentTileInList(WaveTile2D currentTile)
+    {
+        foreach (WaveTile2D tile in tiles[currentTile.getCenter()])
+        {
+            if (tile == currentTile)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void update(int n)
     {
         for (int m= 0; m < n; m++)
         {
-            if (posToDo.Count > 0)
+            if (posToDo.Count > 0 && !forceStop)
             {
                 //Get the lowest entropy tile
                 EntropyTile currentETile = getLowestEntropy(posToDo);
@@ -233,8 +331,8 @@ public class WaveFunctionGrid2D
                 SetPixelAt(currentPos.x, currentPos.y, currentETile.compatibleList[randomID]);
 
 
-                int min = -Mathf.FloorToInt(TILESIZE / 2);
-                int max = Mathf.FloorToInt(TILESIZE / 2);
+                int min = -Mathf.FloorToInt((TILESIZE) / 2);
+                int max = Mathf.FloorToInt((TILESIZE) / 2);
 
                 //Check if compatibility around are possible
                 bool isAroundCompatible = true;
@@ -247,10 +345,12 @@ public class WaveFunctionGrid2D
                         {
                             continue;
                         }
+                        RecomputeEntropyTileAtPos(ref posToDo, new Vector2Int(currentPos.x + i, currentPos.y + j), tiles);
                         List<int> l = getListOfCompatible(pos, tiles);
                         if (l.Count == 0)
                         {
-                            isAroundCompatible = false;
+                               isAroundCompatible = false;
+                            
                         }
                     }
                 }
@@ -275,20 +375,21 @@ public class WaveFunctionGrid2D
                         }
                     }
                 }
-
-                for (int i = min; i <= max; i++)
+                if (o == currentETile.compatibleList.Count)
                 {
-                    for (int j = min; j <= max; j++)
-                    {
-                        RecomputeEntropyTileAtPos(posToDo, new Vector2Int(currentPos.x + i, currentPos.y + j), tiles);
-                    }
+                    Debug.Log("Impossible pixel !! at : " + currentETile.pos );
+                    SetPixelAt(currentETile.pos.x, currentETile.pos.y, -3);
+                    forceStop = true;
+
                 }
+                
 
                 //Remove current ETile
                 removeInListFromPos(ref posToDo, currentPos);
             }
             
         }
+        
     }
 
     private List<int> getListOfCompatible(Vector2Int center, Dictionary<int, List<WaveTile2D>> tiles)
@@ -323,7 +424,7 @@ public class WaveFunctionGrid2D
         return result;
     }
 
-    private void RecomputeEntropyTileAtPos(List<EntropyTile> list, Vector2Int pos, Dictionary<int, List<WaveTile2D>> tiles)
+    private void RecomputeEntropyTileAtPos(ref List<EntropyTile> list, Vector2Int pos, Dictionary<int, List<WaveTile2D>> tiles)
     {
         for(int i = 0; i < list.Count; i++)
         {
@@ -331,6 +432,12 @@ public class WaveFunctionGrid2D
             if (t.pos == pos)
             {
                 t.compatibleList = getListOfCompatible(pos, tiles);
+                if (GetTileAt(t.pos) == -2)
+                {
+                    //Refresh Color
+                    SetPixelAt(t.pos.x, t.pos.y, -2);
+                }
+                
                 list[i] = t;
                 return;
             }
@@ -358,6 +465,10 @@ public class WaveTile2D
 
     // -1 = Image Border
 
+    // -2 = Any Tile
+
+    // -3 = Error Tile
+
     public WaveTile2D(int[,] content)
     {
         if (content.GetLength(0) != content.GetLength(1))
@@ -365,7 +476,48 @@ public class WaveTile2D
             Debug.LogWarning("Warning wront tile format input !!");
         }
         size = content.GetLength(0);
-        tileContent = content;
+        tileContent = content.Clone() as int[,];
+    }
+
+    /// <summary>
+    /// Rotate by 90 * n degrees the the waveTile
+    /// </summary>
+    public void Rotate(double n)
+    {
+        n *= Mathf.Deg2Rad * 90;
+        int[,] temp = tileContent.Clone() as int[,];
+        Vector2Int center = new Vector2Int(size / 2, size / 2);
+        for (int x = 0; x < size; x++)
+        {
+            for (int y = 0; y < size; y++)
+            {
+                Vector2Int pos = new Vector2Int(x, y);
+                if (pos != center)
+                {
+                    int newX = center.x + Mathf.RoundToInt((float)((x-center.x)*Math.Cos(n) - (y - center.y) * (float)Math.Sin(n)));
+                    int newY = center.y + Mathf.RoundToInt((float)((y - center.y) *Math.Cos(n) + (x - center.x) * (float)Math.Sin(n)));
+
+                    temp[newX, newY] = tileContent[x, y];
+                }
+            }
+        }
+        tileContent = temp.Clone() as int[,];
+    }
+
+    public void Mirror(bool flipx, bool flipy)
+    {
+        int[,] temp = tileContent.Clone() as int[,];
+        for (int x = 0; x < size; x++)
+        {
+            for (int y = 0; y < size; y++)
+            {
+                int newX = flipx ? (size-1)-x : x;
+                int newY = flipy ? (size-1)-y : y;
+
+                temp[newX, newY] = tileContent[x, y];
+            }
+        }
+        tileContent = temp.Clone() as int[,];
     }
 
     public int getCenter()
@@ -440,6 +592,7 @@ public class WaveTile2D
                     {
                         return false;
                     }
+                    continue;
                 }
                 else
                 {
@@ -447,6 +600,7 @@ public class WaveTile2D
                     {
                         return false;
                     }
+                    continue;
                 }
             }
         }
@@ -461,10 +615,13 @@ public class WaveFunction2DComponent : MonoBehaviour
     private GameObject GOInput;
     private WaveFunctionGrid2D currentGrid;
     private WaveFunctionGrid2D inputGrid;
+
+    public bool doTileRotateOrMirror = false;
     // Start is called before the first frame update
     void Start()
     {
         currentGrid = GetComponent<SpriteCreator>().getGrid();
+        currentGrid.tileRotMirror = doTileRotateOrMirror;
         inputGrid = GOInput.GetComponent<SpriteCreator>().getGrid();
         
         currentGrid.setColors(GOInput.GetComponent<SpriteCreator>().getColors());
@@ -474,7 +631,15 @@ public class WaveFunction2DComponent : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        currentGrid.update(1);
+        if (Input.GetKey(KeyCode.Space))
+        {
+            currentGrid.update(1);
+        }
+        if (Input.GetKeyDown(KeyCode.P))
+        {
+            currentGrid.update(1);
+        }
+
     }
 
     public void updateSprite()
@@ -488,6 +653,7 @@ public class WaveFunction2DComponent : MonoBehaviour
     public void launchWaveFunction()
     {
         Debug.Log("Grid Function Launch");
+        inputGrid = GOInput.GetComponent<SpriteCreator>().getGrid();
         currentGrid.launchWaveFunction(inputGrid);
         if (currentGrid.updateSprite())
         {

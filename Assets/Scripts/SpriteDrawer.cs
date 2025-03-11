@@ -42,7 +42,7 @@ public class SpriteDrawer : MonoBehaviour
             {
                 sc.grid.SetPixelAt(spritePos.x, spritePos.y, 0);
             }
-            if (Input.GetMouseButtonDown(2))
+            if (Input.GetMouseButton(2))
             {
                 sc.grid.SetPixelAt(spritePos.x, spritePos.y, 2);
             }

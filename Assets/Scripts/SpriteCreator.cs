@@ -21,21 +21,32 @@ public class SpriteCreator : MonoBehaviour
     private void Awake()
     {
         
-        if (grid == null)
-        {
-            createGrid();
-        }
        
     }
 
     void Start()
     {
+        
         spriteRenderer = GetComponent<SpriteRenderer>();
         boxCollider = GetComponent<BoxCollider>();
-        spriteRenderer.sprite = grid.GetSprite();
+        if (spriteRenderer.sprite != null)
+        {
+            grid = SpriteToGrid(spriteRenderer.sprite);
+        }
+        else if (grid == null)
+        {
+            createGrid();
+            spriteRenderer.sprite = grid.GetSprite();
+        }
+        
         ApplyChanges();
         boxCollider.size = new Vector3(textureSize.x/100.0f, textureSize.y/100.0f, 0.01f);
         transform.localScale = Vector3.one*(sizeModifier*(128.0f/textureSize.x));
+    }
+
+    private WaveFunctionGrid2D SpriteToGrid(Sprite s)
+    {
+        return new WaveFunctionGrid2D(s);
     }
 
     public WaveFunctionGrid2D createGrid()
