@@ -22,15 +22,18 @@ public class WaveFunctionGrid2D
     public Color[] colors;
     public int maxID = 10;
 
+    public WaveTile2D lastWaveTile;
+
     public bool tileRotMirror = false;
 
-    List<EntropyTile> posToDo;
-    Dictionary<int, List<WaveTile2D>> tiles;
+    List<Vector2Int> posToDo;
+    List<EntropyTile> entropyTiles;
+    List<WaveTile2D> tiles;
     bool forceStop = false;
 
     private struct EntropyTile
     {
-        public List<int> compatibleList;
+        public List<WaveTile2D> compatibleList;
         public Vector2Int pos;
 
 
@@ -48,7 +51,8 @@ public class WaveFunctionGrid2D
     {
         updateSpriteEvt = new UnityEvent();
         getContentFromSprite(sprt);
-        posToDo = new List<EntropyTile>();
+        posToDo = new List<Vector2Int>();
+        entropyTiles = new List<EntropyTile>();
         maxID = colors.Length;
 
 
@@ -125,7 +129,8 @@ public class WaveFunctionGrid2D
         texture.filterMode = FilterMode.Point;
         texture.wrapMode = TextureWrapMode.Clamp;
         gridContent = new int[size.x, size.y];
-        posToDo = new List<EntropyTile>();
+        entropyTiles = new List<EntropyTile>();
+        posToDo = new List<Vector2Int>();
         maxID = colors.Length;
 
         Fill(0);
@@ -148,13 +153,13 @@ public class WaveFunctionGrid2D
 
         texture.SetPixel(x, y, color);
         if (newID == -2) { texture.SetPixel(x, y, mixCompatibleColor(x, y)); }
-        else if (newID == -3) { texture.SetPixel(x, y, Color.red); }
+        else if (newID == -3 ||newID == -1) { texture.SetPixel(x, y, Color.red); }
         updateSpriteEvt.Invoke();
     }
 
     private Color mixCompatibleColor(int x, int y)
     {
-        List<int> idList = getListOfCompatible(new Vector2Int(x, y), tiles);
+        List<int> idList = GetIntCompatible(getListOfCompatible(new Vector2Int(x, y), tiles));
         int colorN = idList.Count;
         Color c = Color.black;
         foreach (int id in idList)
@@ -212,12 +217,8 @@ public class WaveFunctionGrid2D
         //Set the colors
         setColors(input.colors);
 
-        tiles = new Dictionary<int, List<WaveTile2D>>();
-        //Create List for the wave tile
-        for (int i = 0; i < input.maxID; i++)
-        {
-            tiles[i] = new List<WaveTile2D>();
-        }
+        tiles = new List<WaveTile2D>();
+
         Vector2 inputSize = input.getSize();
         for (int x = 0; x < input.gridContent.GetLength(0); x++)
         {
@@ -241,34 +242,34 @@ public class WaveFunctionGrid2D
                 if (!existInList)
                 {
 
-                    tiles[currentTile.getCenter()].Add(currentTile);
+                    tiles.Add(currentTile);
                     if (tileRotMirror)
                     {
                         //Rotate by 90°
                         WaveTile2D nTile = new WaveTile2D(tileContent);
                         nTile.Rotate(1);
-                        if (!isCurrentTileInList(nTile)) { tiles[currentTile.getCenter()].Add(nTile); }
+                        if (!isCurrentTileInList(nTile)) { tiles.Add(nTile); }
 
 
                         //Rotate by 270°
                         nTile = new WaveTile2D(tileContent);
                         nTile.Rotate(3);
-                        if (!isCurrentTileInList(nTile)) { tiles[currentTile.getCenter()].Add(nTile); }
+                        if (!isCurrentTileInList(nTile)) { tiles.Add(nTile); }
 
                         //Mirror in X
                         nTile = new WaveTile2D(tileContent);
                         nTile.Mirror(true, false);
-                        if (!isCurrentTileInList(nTile)) { tiles[currentTile.getCenter()].Add(nTile); }
+                        if (!isCurrentTileInList(nTile)) { tiles.Add(nTile); }
 
                         //Mirror in Y
                         nTile = new WaveTile2D(tileContent);
                         nTile.Mirror(false, true);
-                        if (!isCurrentTileInList(nTile)) { tiles[currentTile.getCenter()].Add(nTile); }
+                        if (!isCurrentTileInList(nTile)) { tiles.Add(nTile); }
 
                         //Mirror in X and Y (same as rotate by 180°)
                         nTile = new WaveTile2D(tileContent);
                         nTile.Mirror(true, true);
-                        if (!isCurrentTileInList(nTile)) { tiles[currentTile.getCenter()].Add(nTile); }
+                        if (!isCurrentTileInList(nTile)) { tiles.Add(nTile); }
                     }
 
                 }
@@ -284,7 +285,8 @@ public class WaveFunctionGrid2D
         //Get Random Start Pos
         Vector2Int start = new Vector2Int(UnityEngine.Random.Range(0, size.x - 1), UnityEngine.Random.Range(0, size.y - 1));
 
-        posToDo = new List<EntropyTile>();
+        posToDo = new List<Vector2Int>();
+        entropyTiles = new List<EntropyTile>();
         for (int x = 0; x < gridContent.GetLength(0); x++)
         {
             for (int y = 0; y < gridContent.GetLength(1); y++)
@@ -292,16 +294,19 @@ public class WaveFunctionGrid2D
                 EntropyTile value = new EntropyTile();
                 value.pos = new Vector2Int(x, y);
                 value.compatibleList = getListOfCompatible(new Vector2Int(x, y), tiles);
-                posToDo.Add(value);
+                posToDo.Add(value.pos);
+                entropyTiles.Add(value);
             }
         }
+        RecomputeAll(ref entropyTiles,tiles);
 
+        
 
     }
 
     public bool isCurrentTileInList(WaveTile2D currentTile)
     {
-        foreach (WaveTile2D tile in tiles[currentTile.getCenter()])
+        foreach (WaveTile2D tile in tiles)
         {
             if (tile == currentTile)
             {
@@ -318,94 +323,162 @@ public class WaveFunctionGrid2D
             if (posToDo.Count > 0 && !forceStop)
             {
                 //Get the lowest entropy tile
-                EntropyTile currentETile = getLowestEntropy(posToDo);
+                EntropyTile currentETile =  getLowestEntropy(entropyTiles);
                 Vector2Int currentPos = currentETile.pos;
+
                 if (currentETile.compatibleList.Count == 0)
                 {
-                    removeInListFromPos(ref posToDo, currentPos);
+                    posToDo.Remove(currentPos);
                     continue;
                 }
 
-                //Check Compatibility
+                
                 int randomID = UnityEngine.Random.Range(0, currentETile.compatibleList.Count);
-                SetPixelAt(currentPos.x, currentPos.y, currentETile.compatibleList[randomID]);
+                
+                //Check Compatibility
 
+                int[,] baseTestGrid = new int[TILESIZE*2 - 1, TILESIZE * 2 - 1];
 
-                int min = -Mathf.FloorToInt((TILESIZE) / 2);
-                int max = Mathf.FloorToInt((TILESIZE) / 2);
-
-                //Check if compatibility around are possible
-                bool isAroundCompatible = true;
+                int min = -TILESIZE+1;
+                int max = TILESIZE-1;
+                //Create grid for test
                 for (int i = min; i <= max; i++)
                 {
                     for (int j = min; j <= max; j++)
                     {
-                        Vector2Int pos = new Vector2Int(currentPos.x + i, currentPos.y + j);
-                        if (GetTileAt(pos) == -1)
-                        {
-                            continue;
-                        }
-                        RecomputeEntropyTileAtPos(ref posToDo, new Vector2Int(currentPos.x + i, currentPos.y + j), tiles);
-                        List<int> l = getListOfCompatible(pos, tiles);
-                        if (l.Count == 0)
-                        {
-                               isAroundCompatible = false;
-                            
-                        }
+                        baseTestGrid[max+i,max+j] = GetTileAt(new Vector2Int(currentPos.x+i,currentPos.y+j));
                     }
                 }
-                //Update Tile Around
-                int o = 0;
-                while (!isAroundCompatible && o < currentETile.compatibleList.Count)
+
+                bool isCompatible = false;
+                int count = -1;
+                while (!isCompatible && count < currentETile.compatibleList.Count)
                 {
-                    o++;
-                    isAroundCompatible = true;
-                    randomID = ((randomID+1) % currentETile.compatibleList.Count);
-                    SetPixelAt(currentPos.x, currentPos.y, currentETile.compatibleList[randomID]);
+                    count++;
+                    isCompatible = true;
+                    WaveTile2D currWaveTile = currentETile.compatibleList[(randomID+count)% currentETile.compatibleList.Count];
+                    //Duplicate the grid
+                    int[,] testGrid = baseTestGrid.Clone() as int[,];
+                    min = -Mathf.FloorToInt(TILESIZE / 2);
+                    max = Mathf.FloorToInt(TILESIZE / 2);
+                    int maxGridSize = TILESIZE - 1;
+                    //Change the value of the test to the current waveTile
                     for (int i = min; i <= max; i++)
                     {
                         for (int j = min; j <= max; j++)
                         {
-                            List<int> l = getListOfCompatible(new Vector2Int(currentPos.x + i, currentPos.y + j), tiles);
-                            if (l.Count == 0)
+                            testGrid[maxGridSize + i, maxGridSize + j] = currWaveTile.tileContent[max + i, max + j];
+                        }
+                    }
+
+
+                    //Check if the current WaveTile is compatibile
+                    //int checkSize = max;
+                    for (int i = min; i <= max; i++)
+                    {
+                        for (int j = min; j <= max; j++)
+                        {
+                            int currentCenterID = testGrid[maxGridSize + i, maxGridSize + j];
+                            //Check if its an any Tile
+                            if (currentCenterID != -1)
                             {
-                                isAroundCompatible = false;
+                                int[,] localGrid = new int[TILESIZE, TILESIZE];
+                                for (int x = min; x <= max; x++)
+                                {
+                                    for (int y = min; y <= max; y++)
+                                    {
+                                        localGrid[max+x,max+y] = testGrid[maxGridSize + x +i,maxGridSize+y+j];
+                                    }
+                                }
+                                Debug.Log("Check at : " + i + " | " + j);
+                                List<WaveTile2D> listWt = getLocalListOfCompatible(tiles, localGrid);
+
+                                if (listWt.Count == 0)
+                                {
+                                    isCompatible = false;
+                                    
+                                }
                             }
-                            
                         }
                     }
                 }
-                if (o == currentETile.compatibleList.Count)
-                {
-                    Debug.Log("Impossible pixel !! at : " + currentETile.pos );
-                    SetPixelAt(currentETile.pos.x, currentETile.pos.y, -3);
-                    forceStop = true;
 
+                if (count == currentETile.compatibleList.Count)
+                {
+                    Debug.Log("Impossible Pixel");
+                    SetPixelAt(currentPos.x, currentPos.y, -3);
+                    forceStop = true;
                 }
-                
+                else
+                {
+                    SpriteDebug.Instance().setColors(colors);
+                    SpriteDebug.Instance().drawWaveTile(currentETile.compatibleList[(randomID + count) % currentETile.compatibleList.Count]);
+                    int newID = currentETile.compatibleList[(randomID + count) % currentETile.compatibleList.Count].getCenter();
+                    SetPixelAt(currentPos.x, currentPos.y, newID);
+                }
+
+                for (int i = min; i <= max; i++)
+                {
+                    for (int j = min; j <= max; j++)
+                    {
+                        RecomputeEntropyTileAtPos(ref entropyTiles, new Vector2Int(currentPos.x + i, currentPos.y + j), tiles);
+                    }
+                }
 
                 //Remove current ETile
-                removeInListFromPos(ref posToDo, currentPos);
+                posToDo.Remove(currentPos);
             }
             
         }
         
     }
 
-    private List<int> getListOfCompatible(Vector2Int center, Dictionary<int, List<WaveTile2D>> tiles)
+    private List<WaveTile2D> getLocalListOfCompatible(List<WaveTile2D> t, int[,] grid)
     {
-        List<int> compatibleList = new List<int>();
-        int[,] currentTileInGrid = getGroupAt(center, TILESIZE);
-        foreach (KeyValuePair<int, List<WaveTile2D>> wtpair in tiles)
+        List<WaveTile2D> compatibleList = new List<WaveTile2D>();
+        foreach (WaveTile2D wt in t)
         {
-            List<WaveTile2D> wtlist = wtpair.Value;
-            foreach (WaveTile2D wt in wtlist)
+            if (wt.isCompatible(grid))
             {
-                if (wt.isCompatible(currentTileInGrid))
+                compatibleList.Add(wt);
+            }
+        }
+        return compatibleList;
+    }
+
+    private List<WaveTile2D> getListOfCompatible(Vector2Int center, List<WaveTile2D> t)
+    {
+        List<WaveTile2D> compatibleList = new List<WaveTile2D>();
+        int[,] currentTileInGrid = getGroupAt(center, TILESIZE);
+        foreach (WaveTile2D wt in t)
+        {
+            if (wt.isCompatible(currentTileInGrid))
+            {
+                compatibleList.Add(wt);
+            }
+        }
+        return compatibleList;
+    }
+
+    private List<int> GetIntCompatible(List<WaveTile2D> l)
+    {
+        
+        List<int> compatibleList = new List<int>();
+        foreach (WaveTile2D wt in l)
+        {
+            bool isInsideList = false;
+            int currentCenter = wt.getCenter();
+            for (int i = 0; i < compatibleList.Count; i++)
+            {
+                if (currentCenter == compatibleList[i])
                 {
-                    compatibleList.Add(wtpair.Key);
+                    isInsideList = true;
                     break;
                 }
+            }
+            if (!isInsideList)
+            {
+                compatibleList.Add(currentCenter);
             }
         }
         return compatibleList;
@@ -413,25 +486,28 @@ public class WaveFunctionGrid2D
 
     private EntropyTile getLowestEntropy(List<EntropyTile> list)
     {
-        EntropyTile result = list[0];
+        EntropyTile result = new EntropyTile();
+        int sizeMin = 99999999;
         foreach (EntropyTile t in list)
         {
-            if (t.compatibleList.Count < result.compatibleList.Count)
+            if (GetIntCompatible(t.compatibleList).Count <= sizeMin )
             {
                 result = t;
+                sizeMin = GetIntCompatible(t.compatibleList).Count;
             }
         }
         return result;
     }
 
-    private void RecomputeEntropyTileAtPos(ref List<EntropyTile> list, Vector2Int pos, Dictionary<int, List<WaveTile2D>> tiles)
+    private void RecomputeEntropyTileAtPos(ref List<EntropyTile> list, Vector2Int pos, List<WaveTile2D> lwt)
     {
-        for(int i = 0; i < list.Count; i++)
+        if (GetTileAt(pos) == -1) return;
+        for (int i = 0; i < list.Count; i++)
         {
             EntropyTile t = list[i];
             if (t.pos == pos)
             {
-                t.compatibleList = getListOfCompatible(pos, tiles);
+                t.compatibleList = getListOfCompatible(pos, lwt);
                 if (GetTileAt(t.pos) == -2)
                 {
                     //Refresh Color
@@ -442,19 +518,29 @@ public class WaveFunctionGrid2D
                 return;
             }
         }
+        return;
     }
 
-    private void removeInListFromPos(ref List<EntropyTile> list, Vector2Int pos)
+    private void RecomputeAll(ref List<EntropyTile> list, List<WaveTile2D> lwt)
     {
         for (int i = 0; i < list.Count; i++)
         {
             EntropyTile t = list[i];
-            if (t.pos == pos)
+            t.compatibleList = getListOfCompatible(t.pos, lwt);
+            if (GetTileAt(t.pos) == -2)
             {
-               list.RemoveAt(i);
-                return;
+                //Refresh Color
+                SetPixelAt(t.pos.x, t.pos.y, -2);
             }
+
+            list[i] = t;
         }
+        return;
+    }
+
+    private bool getCompatibleAround(Vector2Int pos, List<WaveTile2D> lwt)
+    {
+        return true;
     }
 }
 

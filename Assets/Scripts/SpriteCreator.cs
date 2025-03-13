@@ -32,6 +32,7 @@ public class SpriteCreator : MonoBehaviour
         if (spriteRenderer.sprite != null)
         {
             grid = SpriteToGrid(spriteRenderer.sprite);
+            textureSize = grid.size;
         }
         else if (grid == null)
         {
@@ -40,8 +41,13 @@ public class SpriteCreator : MonoBehaviour
         }
         
         ApplyChanges();
-        boxCollider.size = new Vector3(textureSize.x/100.0f, textureSize.y/100.0f, 0.01f);
-        transform.localScale = Vector3.one*(sizeModifier*(128.0f/textureSize.x));
+        if (boxCollider)
+        {
+            boxCollider.size = new Vector3(textureSize.x / 100.0f, textureSize.y / 100.0f, 0.01f);
+        }
+       
+        float maxTextureSize = Mathf.Max(textureSize.x, textureSize.y);
+        transform.localScale = Vector3.one*(sizeModifier*(128.0f/maxTextureSize));
     }
 
     private WaveFunctionGrid2D SpriteToGrid(Sprite s)
