@@ -4,6 +4,7 @@ using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UIElements;
+using static UnityEditor.PlayerSettings;
 
 
 
@@ -338,48 +339,93 @@ public class WaveFunctionGrid2D
                 {
                     posToDo.Remove(currentPos);
                     currentETile.isTileDone = true;
+                    SetPixelAt(currentPos.x, currentPos.y, -3);
                     continue;
                 }
 
                 
                 int randomID = UnityEngine.Random.Range(0, currentETile.compatibleList.Count);
-                bool isCompatible = true;
-                int count = -1;
                 //Check Compatibility
-                do
+                int newPixel = currentETile.compatibleList[randomID].getCenter();
+                SetPixelAt(currentPos.x, currentPos.y, newPixel);
+
+                
+                int min = -Mathf.FloorToInt((TILESIZE) / 2);
+                int max = Mathf.FloorToInt((TILESIZE) / 2);
+                //Remove Impossible tiles with the new pixel placed (INSUFFICIENT)
+                for (int y = min; y <= max; y++)
                 {
-                    
-                    List<EntropyTile> surroundingTiles = new List<EntropyTile>();
-                    count++;
-                    int min = -Mathf.FloorToInt((TILESIZE) / 2);
-                    int max = Mathf.FloorToInt((TILESIZE) / 2);
-                    for (int y = min; y <= max; y++)
+                    for (int x = min; x <= max; x++)
                     {
-                        for (int x = min; x <= max; x++)
+                        Vector2Int pos = new Vector2Int(currentPos.x + x, currentPos.y + y);
+                        if (GetTileAt(pos) == -1) { continue; }
+                        List<WaveTile2D> toRemove = new List<WaveTile2D>();
+                        foreach (WaveTile2D currTile in entropyTiles[pos].compatibleList)
                         {
-                            if (GetTileAt(new Vector2Int(currentPos.x+x,currentPos.y+y)) == -1) { continue; }
-                            surroundingTiles.Add(new EntropyTile(entropyTiles[new Vector2Int(currentPos.x + x, currentPos.y + y)]));
+                            if (currTile.tileContent[max-x,max-y] != newPixel)
+                            {
+                                toRemove.Add(currTile);
+                            }
+                        }
+                        foreach (WaveTile2D wt in toRemove)
+                        {
+                            entropyTiles[pos].compatibleList.Remove(wt);
                         }
                     }
-
-
-                    
                 }
-                while (!isCompatible && count< currentETile.compatibleList.Count);
-
-
+                //Remove Impossible tiles with tiles from the surrounding
                 
-                
-                //SpriteDebug.Instance().setColors(colors);
-                //SpriteDebug.Instance().drawWaveTile(1);
-                int newID = 1;
-                SetPixelAt(currentPos.x, currentPos.y, newID);
+                for (int y = min; y <= max; y++)
+                {
+                    for (int x = min; x <= max; x++)
+                    {
+                        Vector2Int pos = new Vector2Int(currentPos.x + x, currentPos.y + y);
+                        if (GetTileAt(pos) == -1) { continue; }
+                        List<WaveTile2D> toRemove = new List<WaveTile2D>();
+                        foreach (WaveTile2D currTile in entropyTiles[pos].compatibleList)
+                        {
+                            bool hasOneCompatible = false;                                                   
+                            for (int i = min; i <= max; i++)
+                            {
+                                for (int j = min; j <= max; j++)
+                                {
 
+                                    Vector2Int aroundPos = new Vector2Int(pos.x + i, pos.y + j);
+                                    if (GetTileAt(aroundPos) == -1 || pos == aroundPos) { continue; }
+                                    foreach (WaveTile2D arrTile in entropyTiles[aroundPos].compatibleList)
+                                    {
+                                        if (currTile.isCompatible(arrTile, new Vector2Int(-i, -j))) { 
+                                            hasOneCompatible = true; break; 
+                                        }
+                                        else
+                                        {
+                                            Debug.Log("FALSE");
+                                        }
+                                    }
+                                }
+                            }
+                            if (!hasOneCompatible) { 
+                                toRemove.Add(currTile); 
+                            }
+                        }
+                        Debug.Log("Actual number : " + entropyTiles[pos].compatibleList.Count + " | To Remove : " + toRemove.Count);
+                        foreach (WaveTile2D wt in toRemove)
+                        {
+                            entropyTiles[pos].compatibleList.Remove(wt);
+                        }
+                        
+                        toRemove.Clear();
+                        //Refresh Colors
+                        if (GetTileAt(pos) == -2) { SetPixelAt(pos.x, pos.y, -2); }
+                    }
+                }
                 
 
                 //Remove current ETile
                 currentETile.isTileDone = true;
                 posToDo.Remove(currentPos);
+                
+                
             }
             
         }
@@ -444,7 +490,7 @@ public class WaveFunctionGrid2D
         foreach (Vector2Int pos in posToDo)
         {
             EntropyTile t = entropyTiles[pos];
-            if (t.compatibleList.Count < sizeMin)
+            if ( t.compatibleList.Count < sizeMin)
             {
                 result = t;
                 sizeMin = t.compatibleList.Count;
@@ -487,6 +533,7 @@ public class WaveTile2D
 {
     public int size;
     public int[,] tileContent;
+    public int counter;
 
     // -1 = Image Border
 
@@ -626,6 +673,28 @@ public class WaveTile2D
                         return false;
                     }
                     continue;
+                }
+            }
+        }
+        return true;
+    }
+
+    public bool isCompatible(WaveTile2D wt, Vector2Int offset )
+    {
+        if (size != wt.size)
+        {
+            return false;
+        }
+        for (int x = 0; x < size; x++)
+        {
+            for (int y = 0; y < size; y++)
+            {
+                Vector2Int offsetPos = new Vector2Int(x- offset.x,y-offset.y);
+                if (offsetPos.x < 0 || offsetPos.x >= size || offsetPos.y < 0 || offsetPos.y >= size) { continue; }
+                //If Any Tile check if the current wavetile has a border wall at the same place (Border and Any is incompatible)
+                if (wt.tileContent[x,y] != tileContent[offsetPos.x, offsetPos.y])
+                {
+                    return false;
                 }
             }
         }
