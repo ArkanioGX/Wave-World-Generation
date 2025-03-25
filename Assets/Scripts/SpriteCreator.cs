@@ -33,6 +33,7 @@ public class SpriteCreator : MonoBehaviour
         {
             grid = SpriteToGrid(spriteRenderer.sprite);
             textureSize = grid.size;
+            GetComponent<SpriteDrawer>().isActive = false;
         }
         else if (grid == null)
         {

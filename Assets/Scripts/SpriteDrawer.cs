@@ -7,6 +7,7 @@ using UnityEngine.Assertions;
 public class SpriteDrawer : MonoBehaviour
 {
     private Camera cameraMain;
+    public bool isActive = true;
     // Start is called before the first frame update
     void Start()
     {
@@ -23,30 +24,32 @@ public class SpriteDrawer : MonoBehaviour
             cameraMain = Camera.main; 
         }
         Ray ray = cameraMain.ScreenPointToRay(Input.mousePosition);
-
-        if (Physics.Raycast(ray, out hit))
+        if (isActive)
         {
-            if (hit.collider.gameObject != gameObject)
+            if (Physics.Raycast(ray, out hit))
             {
-                return;
-            }
-                
+                if (hit.collider.gameObject != gameObject)
+                {
+                    return;
+                }
 
-            SpriteCreator sc = hit.collider.gameObject.GetComponent<SpriteCreator>();
-            Vector2Int spritePos = sc.WorldToSpritePos(hit.point);
-            if (Input.GetMouseButton(0))
-            {
-                sc.grid.SetPixelAt(spritePos.x, spritePos.y, 1);
+
+                SpriteCreator sc = hit.collider.gameObject.GetComponent<SpriteCreator>();
+                Vector2Int spritePos = sc.WorldToSpritePos(hit.point);
+                if (Input.GetMouseButton(0))
+                {
+                    sc.grid.SetPixelAt(spritePos.x, spritePos.y, 1);
+                }
+                if (Input.GetMouseButton(1))
+                {
+                    sc.grid.SetPixelAt(spritePos.x, spritePos.y, 0);
+                }
+                if (Input.GetMouseButton(2))
+                {
+                    sc.grid.SetPixelAt(spritePos.x, spritePos.y, 2);
+                }
+                sc.ApplyChanges();
             }
-            if (Input.GetMouseButton(1))
-            {
-                sc.grid.SetPixelAt(spritePos.x, spritePos.y, 0);
-            }
-            if (Input.GetMouseButton(2))
-            {
-                sc.grid.SetPixelAt(spritePos.x, spritePos.y, 2);
-            }
-            sc.ApplyChanges();
         }
     }
 }
