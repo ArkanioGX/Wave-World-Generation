@@ -578,7 +578,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 1352728686}
         m_TargetAssemblyTypeName: WaveFunction2DComponent, Assembly-CSharp
-        m_MethodName: launchWaveFunction
+        m_MethodName: LaunchFunction
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -1352,7 +1352,7 @@ MonoBehaviour:
   - {r: 1, g: 0.3160377, b: 0.3160377, a: 1}
   - {r: 0, g: 0.87953043, b: 1, a: 1}
   sizeModifier: 10
-  textureSize: {x: 16, y: 16}
+  textureSize: {x: 5, y: 5}
 --- !u!212 &1385354149
 SpriteRenderer:
   m_ObjectHideFlags: 0
