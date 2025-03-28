@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Assertions;
+using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(SpriteCreator))]
 public class SpriteDrawer : MonoBehaviour
@@ -23,7 +24,7 @@ public class SpriteDrawer : MonoBehaviour
         {
             cameraMain = Camera.main; 
         }
-        Ray ray = cameraMain.ScreenPointToRay(Input.mousePosition);
+        Ray ray = cameraMain.ScreenPointToRay(Mouse.current.position.ReadValue());
         if (isActive)
         {
             if (Physics.Raycast(ray, out hit))
@@ -36,7 +37,7 @@ public class SpriteDrawer : MonoBehaviour
 
                 SpriteCreator sc = hit.collider.gameObject.GetComponent<SpriteCreator>();
                 Vector2Int spritePos = sc.WorldToSpritePos(hit.point);
-                if (Input.GetMouseButton(0))
+                /*if (Mouse.current)
                 {
                     sc.grid.SetPixelAt(spritePos.x, spritePos.y, 1);
                 }
@@ -47,7 +48,7 @@ public class SpriteDrawer : MonoBehaviour
                 if (Input.GetMouseButton(2))
                 {
                     sc.grid.SetPixelAt(spritePos.x, spritePos.y, 2);
-                }
+                }*/
                 sc.ApplyChanges();
             }
         }

@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.Events;
-using UnityEngine.UIElements;
-using static UnityEditor.PlayerSettings;
+
 
 
 
@@ -119,8 +118,7 @@ public class WaveFunctionGrid2D
         entropyTiles = new Dictionary<Vector2Int, EntropyTile>();
         posToDo = new List<Vector2Int>();
         maxID = colors.Length;
-
-        Fill(0);
+        Fill(0, true);
         updateSprite();
     }
     public Sprite GetSprite()
@@ -130,11 +128,12 @@ public class WaveFunctionGrid2D
     
     public Color getColorFromEntropy(Vector2Int pos)
     {
+        if (entropyTiles == null) { return Color.black; }
         int currentCount = entropyTiles[pos].compatibleList.Count;
         if (currentCount < 10) {
             Color[] cList =
             {
-                new Color(0.9f,0.1f,0.1f,1.0f),
+                new Color(1.0f,0.0f,0.0f,1.0f),
                 new Color(1.0f,0.5f,0.1f,1.0f),
                 new Color(1.0f,0.8f,0.0f,1.0f),
                 new Color(1.0f,1.0f,0.1f,1.0f),
@@ -145,6 +144,10 @@ public class WaveFunctionGrid2D
                 new Color(0.6f,0.8f,0.9f,1.0f),
                 new Color(0.2f,0.2f,0.8f,1.0f)
             };
+            if (currentCount == 0)
+            {
+                Debug.Log("Weird ...");
+            }
             return cList[currentCount];
         }
         else if (currentCount < 20)
@@ -170,13 +173,25 @@ public class WaveFunctionGrid2D
         if (newID == -3 ||newID == -1) { texture.SetPixel(x, y, Color.red); }
         updateSpriteEvt.Invoke();
     }
-    public void Fill(int id)
+    public void Fill(int id, bool ApplyColor)
     {
-        for (int x = 0; x < texture.width; x++)
-        {
-            for (int y = 0; y < texture.height; y++)
+        if (ApplyColor) {
+            for (int x = 0; x < texture.width; x++)
             {
-                SetPixelAt(x, y, id);
+                for (int y = 0; y < texture.height; y++)
+                {
+                    SetPixelAt(x, y, id);
+                }
+            }
+        }
+        else
+        {
+            for (int x = 0; x < texture.width; x++)
+            {
+                for (int y = 0; y < texture.height; y++)
+                {
+                    gridContent[x, y] = id;
+                }
             }
         }
     }
@@ -266,6 +281,8 @@ public class WaveFunctionGrid2D
                     }
                 }
 
+                
+
                 foreach (WaveTile2D tile in tiles)
                 {
                     if (WaveTile2D.CheckCompatibility(tile, tempGrid))
@@ -286,16 +303,24 @@ public class WaveFunctionGrid2D
         posToDo = new List<Vector2Int>();
         entropyTiles = new Dictionary<Vector2Int, EntropyTile>();
 
+        //Fill the grid with Any Tile without changing color
+        Fill(-2,false);
+
         ComputeWaveTile(inputGrid);
         ComputeEntropyFromTiles();
 
         //Get new colors
         colors = inputGrid.colors.Clone() as Color[];
 
-        //Fill the grid with Any Tile
-        Fill(-2);
+        //Fill the grid with Any Tile but update color this time
+        Fill(-2,true);
 
 
+    }
+
+    public void Step()
+    {
+        Debug.Log("Step");
     }
     
 }
@@ -394,9 +419,16 @@ public class WaveTile2D
             return false;
         if (ReferenceEquals(this, wt))
             return true;
-        if (GetHashCode() == wt.GetHashCode())
-            return true;
-        return false;
+        if (wt == null || wt.size != size) { return false; }
+        for (int x = 0; x < wt.size; x++)
+        {
+            for (int y = 0; y < wt.size; y++)
+            {
+                //Then if in the current tile its required to be a border it will not be compatible 
+                if (wt.tileContent[x, y] != tileContent[x, y]) { return false; }
+            }
+        }
+        return true;
     }
     public override bool Equals(object obj) => Equals(obj as WaveTile2D);
 
@@ -404,15 +436,7 @@ public class WaveTile2D
     {
         unchecked
         {
-            int n = 0;
-            int hashCode = 0;
-            foreach (int i in tileContent)
-            {
-                //+1 is to count for the wall/border tile
-                hashCode += (i+1) * (1 << n);
-                n++;
-            }
-            return hashCode;
+            return tileContent.GetHashCode(); ;
         }
     }
 
@@ -472,7 +496,19 @@ public class WaveFunction2DComponent : MonoBehaviour
     private WaveFunctionGrid2D currentGrid;
     private WaveFunctionGrid2D inputGrid;
 
+    bool isToggled = false;
+
+    public InputActionAsset actions;
+
     public bool doTileRotateOrMirror = false;
+
+    private void Start()
+    {
+        actions.Enable();
+        actions.FindActionMap("Generation").FindAction("Step").performed += OnStep;
+        actions.FindActionMap("Generation").FindAction("Hold").tri += OnStep;
+        actions.FindActionMap("Generation").FindAction("Toggle").performed += OnToggle;
+    }
 
     public void LaunchFunction()
     {
@@ -485,5 +521,22 @@ public class WaveFunction2DComponent : MonoBehaviour
     private void Update()
     {
         GetComponent<SpriteCreator>().ApplyChanges();
+        if (isToggled && currentGrid != null)
+        {
+            currentGrid.Step();
+        }
+    }
+
+    private void OnStep(InputAction.CallbackContext context)
+    {
+        if (currentGrid != null)
+        {
+            currentGrid.Step();
+        }
+    }
+
+    private void OnToggle(InputAction.CallbackContext context)
+    {
+        isToggled = !isToggled;
     }
 }
