@@ -37,7 +37,7 @@ public class SpriteDrawer : MonoBehaviour
 
                 SpriteCreator sc = hit.collider.gameObject.GetComponent<SpriteCreator>();
                 Vector2Int spritePos = sc.WorldToSpritePos(hit.point);
-                /*if (Mouse.current)
+                if (Input.GetMouseButton(0))
                 {
                     sc.grid.SetPixelAt(spritePos.x, spritePos.y, 1);
                 }
@@ -48,7 +48,7 @@ public class SpriteDrawer : MonoBehaviour
                 if (Input.GetMouseButton(2))
                 {
                     sc.grid.SetPixelAt(spritePos.x, spritePos.y, 2);
-                }*/
+                }
                 sc.ApplyChanges();
             }
         }
