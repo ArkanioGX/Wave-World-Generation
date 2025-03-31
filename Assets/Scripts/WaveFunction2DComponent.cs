@@ -320,7 +320,7 @@ public class WaveFunctionGrid2D
 
     public void Step()
     {
-        Debug.Log("Step");
+        
     }
     
 }
@@ -497,6 +497,7 @@ public class WaveFunction2DComponent : MonoBehaviour
     private WaveFunctionGrid2D inputGrid;
 
     bool isToggled = false;
+    bool isHeld = false;
 
     public InputActionAsset actions;
 
@@ -506,7 +507,8 @@ public class WaveFunction2DComponent : MonoBehaviour
     {
         actions.Enable();
         actions.FindActionMap("Generation").FindAction("Step").performed += OnStep;
-        actions.FindActionMap("Generation").FindAction("Hold").tri += OnStep;
+        actions.FindActionMap("Generation").FindAction("Hold").performed += OnHoldDown;
+        actions.FindActionMap("Generation").FindAction("ReleaseHold").performed += OnHoldUp;
         actions.FindActionMap("Generation").FindAction("Toggle").performed += OnToggle;
     }
 
@@ -521,7 +523,7 @@ public class WaveFunction2DComponent : MonoBehaviour
     private void Update()
     {
         GetComponent<SpriteCreator>().ApplyChanges();
-        if (isToggled && currentGrid != null)
+        if ((isToggled ||isHeld) && currentGrid != null)
         {
             currentGrid.Step();
         }
@@ -533,6 +535,16 @@ public class WaveFunction2DComponent : MonoBehaviour
         {
             currentGrid.Step();
         }
+    }
+
+    private void OnHoldDown(InputAction.CallbackContext context)
+    {
+        isHeld = true;
+    }
+
+    private void OnHoldUp(InputAction.CallbackContext context)
+    {
+        isHeld = false;
     }
 
     private void OnToggle(InputAction.CallbackContext context)
