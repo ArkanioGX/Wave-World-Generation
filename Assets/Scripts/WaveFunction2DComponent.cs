@@ -9,8 +9,8 @@ using UnityEngine.Events;
 
 public class WaveFunctionGrid2D
 {
-    public const int TILESIZE = 3;
-    public const int PRECISION = 2;
+    public int TILESIZE = 3;
+    public int PRECISION = 5; //-1 For best precision possible
 
     public UnityEvent updateSpriteEvt;
 
@@ -67,10 +67,14 @@ public class WaveFunctionGrid2D
 
     }
 
-    public WaveFunctionGrid2D(Vector2Int newSize, Color[] newColors)
+    public WaveFunctionGrid2D(Vector2Int newSize, Color[] newColors,int PatternSIZE = 3, int PrecisionP = 5, bool XClamp = false, bool YClamp = false)
     {
         colors = newColors;
         size = newSize;
+        TILESIZE = PatternSIZE;
+        isXClamped = XClamp;
+        isYClamped = YClamp;
+        PRECISION = PrecisionP;
         updateSpriteEvt = new UnityEvent();
         init();
     }
@@ -142,6 +146,7 @@ public class WaveFunctionGrid2D
         entropyTiles = new Dictionary<Vector2Int, EntropyTile>();
         posToDo = new List<Vector2Int>();
         maxID = colors.Length;
+        if (PRECISION == -1) { PRECISION = Mathf.Min(size.x, size.y) / 2; }
         Fill(0, true);
         updateSprite();
     }
@@ -273,6 +278,7 @@ public class WaveFunctionGrid2D
                     {
                         Vector2Int newPos = new Vector2Int(x + i, y + j);
                         tempGrid[max+i,max+j] = inputGrid.GetTileAt(ref newPos);
+                        
                     }
                 }
 
@@ -323,56 +329,47 @@ public class WaveFunctionGrid2D
                         cList.Add(tile);
                     }
                 }
+                if (cList.Count == 0)
+                {
+                    Debug.Log("Nope");
+                }
 
                 et.compatibleList = new List<WaveTile2D>(cList);
                 entropyTiles.Add(new Vector2Int(x,y),new EntropyTile(et));
                 posToDo.Add(new Vector2Int(x, y));
             }
         }
-        //ComputeEntropyFromSurrounding();
-    }
-    public void ComputeEntropyFromSurrounding()
-    {
-        foreach (KeyValuePair<Vector2Int, EntropyTile> entry in entropyTiles)
-        {
-            int max = TILESIZE / 2;
-            int min = -max;
-
-            List<int> toRemove = new List<int>();
-
-            foreach (WaveTile2D tile in entry.Value.compatibleList)
-            {
-                bool isAllCompatible = true;
-                for (int x = min; x <= max; x++)
-                {
-                    for (int y = min; y <= max; y++)
-                    {
-
-                        Vector2Int localPos = new Vector2Int(x, y);
-                        Vector2Int globalPos = entry.Key + localPos;
-
-                        if (GetTileAt(ref globalPos) == -1) { continue; }
-
-                        bool hasFoundOneCompatibility = false;
-                        foreach (WaveTile2D tileSurround in entropyTiles[globalPos].compatibleList)
-                        {
-                            if (WaveTile2D.CheckCompatibility(tile, tileSurround, localPos)) { 
-                                hasFoundOneCompatibility = true;
-                                continue;
-                            }
-                        }
-                        if (!hasFoundOneCompatibility) 
-                        { 
-                            isAllCompatible = false;
-                            break;
-                        }
-                    }
-                    if (!isAllCompatible) { break; }
-                }
-            }
-        }
     }
     private EntropyTile GetLowestEntropyTile()
+    {
+        EntropyTile lowest = new EntropyTile();
+        int minDist = tiles.Count;
+        foreach (Vector2Int pos in posToDo)
+        {
+            EntropyTile currTile = entropyTiles[pos];
+            /*int max = TILESIZE / 2;
+            int min = -max;
+
+            //int currDist = 
+
+            //Fill the grid from the input
+            for (int i = min; i <= max; i++)
+            {
+                for (int j = min; j <= max; j++)
+                {
+                    V
+                }
+            }*/
+            if (currTile.compatibleList.Count < minDist)
+            {
+                lowest = currTile;
+                minDist = currTile.compatibleList.Count;
+            }
+        }
+        return lowest;
+    }
+
+    private EntropyTile GetLowestEntropyTile2()
     {
         EntropyTile lowest = new EntropyTile();
         int minDist = tiles.Count;
@@ -427,7 +424,7 @@ public class WaveFunctionGrid2D
     {
         if (posToDo.Count > 0)
         {
-            EntropyTile lowestEntropyTile = GetLowestEntropyTile();
+            EntropyTile lowestEntropyTile = GetLowestEntropyTile2();
             Vector2Int currentPos = lowestEntropyTile.pos;
 
             //Debug.Log("Pos at : " + currentPos);
@@ -483,7 +480,7 @@ public class WaveFunctionGrid2D
                                 for (int j = min; j <= max; j++)
                                 {
                                     Vector2Int globalPos = new Vector2Int(pos.x + i, pos.y + j);
-                                    if (GetTileAt(ref globalPos) == -1 || (i == 0 && j == 0)) { continue; }
+                                    if (GetTileAt(ref globalPos) == -1 || (i == 0 && j == 0)) { breakWT = true; continue; }
                                     EntropyTile tileGlobalCheck = entropyTiles[globalPos];
                                     breakWT = false;
                                     foreach (WaveTile2D wtglobalCheck in tileGlobalCheck.compatibleList)
@@ -698,6 +695,14 @@ public class WaveFunction2DComponent : MonoBehaviour
 
     public InputActionAsset actions;
 
+    
+
+    [SerializeField, Header("Generation Options")]
+    private int PatternSize = 3;
+    [SerializeField]
+    private int Precision = 5;
+    [SerializeField]
+    private bool XClamp = false, YClamp = false;
     public bool doTileRotateOrMirror = false;
 
     private void Start()
@@ -712,7 +717,13 @@ public class WaveFunction2DComponent : MonoBehaviour
     public void LaunchFunction()
     {
         currentGrid = GetComponent<SpriteCreator>().grid;
+        currentGrid.isXClamped = XClamp;
+        currentGrid.isYClamped = YClamp;
+        currentGrid.TILESIZE = PatternSize;
+        currentGrid.PRECISION = Precision;
         inputGrid = GOInput.GetComponent<SpriteCreator>().grid;
+        inputGrid.isXClamped = XClamp;
+        inputGrid.isYClamped = YClamp;
 
         currentGrid.Generate(inputGrid);
     }

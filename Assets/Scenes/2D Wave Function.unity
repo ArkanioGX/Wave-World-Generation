@@ -1315,6 +1315,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   GOInput: {fileID: 1385354147}
   actions: {fileID: -944628639613478452, guid: 8d023acf81e878b4ba01c118bc1e0c33, type: 3}
+  PatternSize: 3
+  Precision: 2
+  XClamp: 0
+  YClamp: 0
   doTileRotateOrMirror: 0
 --- !u!1 &1385354147
 GameObject:
@@ -1395,7 +1399,7 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: 21300000, guid: 8e46698442a68df41931c59c8359ea14, type: 3}
+  m_Sprite: {fileID: 21300000, guid: abe0f034535fec94ab17a4fb4b4c91ab, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
