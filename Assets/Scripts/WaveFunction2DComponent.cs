@@ -10,12 +10,13 @@ using UnityEngine.Events;
 public class WaveFunctionGrid2D
 {
     public const int TILESIZE = 3;
+    public const int PRECISION = 2;
 
     public UnityEvent updateSpriteEvt;
 
     public bool isCreatedProperly = false;
     public bool hasBeenModified = true;
-    public bool isXClamped = false;
+    public bool isXClamped = true;
     public bool isYClamped = true;
     public int[,] gridContent;
     private Texture2D texture;
@@ -175,9 +176,9 @@ public class WaveFunctionGrid2D
         {
             Color color = Color.black;
             int colorN = 0;
-            foreach (int cID in entropyTiles[pos].getEntropyList())
+            foreach (WaveTile2D wtID in entropyTiles[pos].compatibleList)
             {
-                color += colors[cID];
+                color += colors[wtID.getCenterContent()];
                 colorN++;
             }
             return color/colorN;
@@ -247,7 +248,7 @@ public class WaveFunctionGrid2D
         if ((pos.x < 0 || pos.x >= size.x) && isXClamped) { return -1; }
         if ((pos.y < 0 || pos.y >= size.y) && isYClamped) { return -1; }
         pos += size;
-        pos = new Vector2Int(pos.x%size.x, pos.y % size.y);
+        pos = new Vector2Int(pos.x % size.x, pos.y % size.y);
         return gridContent[pos.x, pos.y];
     }
     public void ComputeBorderClamp()
@@ -459,54 +460,56 @@ public class WaveFunctionGrid2D
             //ComputeEntropyFromSurrounding();
 
             //Remove unusable wave tile
-            int max = TILESIZE / 2;
-            int min = -max;
-            for (int x = min; x <= max; x++)
+            for (int PrecisionN = 1; PrecisionN <= PRECISION; PrecisionN++)
             {
-                for (int y = min; y <= max; y++)
+                for (int x = -PrecisionN; x <= PrecisionN; x++)
                 {
-                    Vector2Int pos = new Vector2Int(currentPos.x+x, currentPos.y + y);
-                    if (GetTileAt(ref pos) == -1 || (x == 0 && y == 0)) { continue; }
-                    EntropyTile tileCheck = entropyTiles[pos];
-
-                    List<WaveTile2D> toRemove = new List<WaveTile2D>();
-
-                    foreach (WaveTile2D wtcheck in tileCheck.compatibleList)
+                    for (int y = -PrecisionN; y <= PrecisionN; y++)
                     {
-                        bool breakWT = false;
-                        for (int i = min; i <= max; i++)
+                        if (!(x == PrecisionN ||x == -PrecisionN ||y == PrecisionN || y ==  -PrecisionN)) { continue; }
+                        int max = TILESIZE / 2;
+                        int min = -max;
+                        Vector2Int pos = new Vector2Int(currentPos.x + x, currentPos.y + y);
+                        if (GetTileAt(ref pos) == -1 || (x == 0 && y == 0)) { continue; }
+                        EntropyTile tileCheck = entropyTiles[pos];
+
+                        List<WaveTile2D> toRemove = new List<WaveTile2D>();
+
+                        foreach (WaveTile2D wtcheck in tileCheck.compatibleList)
                         {
-                            for (int j = min; j <= max; j++)
+                            bool breakWT = true;
+                            for (int i = min; i <= max; i++)
                             {
-                                Vector2Int globalPos = new Vector2Int(pos.x+i, pos.y + j);
-                                if (GetTileAt(ref globalPos) == -1 || (i == 0 && j == 0)) { continue; }
-                                EntropyTile tileGlobalCheck = entropyTiles[globalPos];
-                                breakWT = false;
-                                foreach (WaveTile2D wtglobalCheck in tileGlobalCheck.compatibleList)
+                                for (int j = min; j <= max; j++)
                                 {
-                                    if (WaveTile2D.CheckCompatibility(wtcheck,wtglobalCheck,new Vector2Int(i,j))) { breakWT = true; break; }
+                                    Vector2Int globalPos = new Vector2Int(pos.x + i, pos.y + j);
+                                    if (GetTileAt(ref globalPos) == -1 || (i == 0 && j == 0)) { continue; }
+                                    EntropyTile tileGlobalCheck = entropyTiles[globalPos];
+                                    breakWT = false;
+                                    foreach (WaveTile2D wtglobalCheck in tileGlobalCheck.compatibleList)
+                                    {
+                                        if (WaveTile2D.CheckCompatibility(wtcheck, wtglobalCheck, new Vector2Int(i, j))) { breakWT = true; break; }
+                                    }
+                                    if (!breakWT) break;
                                 }
                                 if (!breakWT) break;
                             }
-                            if (!breakWT) break;
+                            if (!breakWT) toRemove.Add(wtcheck);
                         }
-                        if (!breakWT) toRemove.Add(wtcheck);
-                    }
 
-                    
-                    Debug.Log(toRemove.Count);
-                    while (toRemove.Count > 0)
-                    {
-                        tileCheck.compatibleList.Remove(toRemove[0]);
-                        toRemove.RemoveAt(0);
-                        
+
+                        Debug.Log(toRemove.Count);
+                        while (toRemove.Count > 0)
+                        {
+                            tileCheck.compatibleList.Remove(toRemove[0]);
+                            toRemove.RemoveAt(0);
+
+                        }
+                        //Refresh Entropy Colors
+                        if (GetTileAt(ref pos) == -2) { SetPixelAt(pos.x, pos.y, -2); }
                     }
-                    //Refresh Entropy Colors
-                    if (GetTileAt(ref pos) == -2) { SetPixelAt(pos.x, pos.y, -2); }
                 }
             }
-
-            
 
             //Remove the pos
             posToDo.Remove(new Vector2Int(currentPos.x, currentPos.y));
