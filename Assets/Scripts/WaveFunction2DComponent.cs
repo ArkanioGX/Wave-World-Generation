@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Events;
-using System.Net;
 
 
 
@@ -16,6 +15,8 @@ public class WaveFunctionGrid2D
 
     public bool isCreatedProperly = false;
     public bool hasBeenModified = true;
+    public bool isXClamped = false;
+    public bool isYClamped = true;
     public int[,] gridContent;
     private Texture2D texture;
     private Sprite sprite;
@@ -148,37 +149,38 @@ public class WaveFunctionGrid2D
         return sprite;
     }
     
-    public Color getColorFromEntropy(Vector2Int pos)
+    public Color getColorFromEntropy(Vector2Int pos, bool EntropySize)
     {
-        if (entropyTiles == null) { return Color.black; }
-        int currentCount = entropyTiles[pos].compatibleList.Count;
-        if (currentCount < 10) {
-            Color[] cList =
-            {
-                new Color(1.0f,0.0f,0.0f,1.0f),
-                new Color(1.0f,0.5f,0.1f,1.0f),
-                new Color(1.0f,0.8f,0.0f,1.0f),
-                new Color(1.0f,1.0f,0.1f,1.0f),
-                new Color(0.9f,0.8f,0.1f,1.0f),
-                new Color(0.1f,0.7f,0.3f,1.0f),
-                new Color(0.7f,0.9f,0.1f,1.0f),
-                new Color(0.0f,0.6f,0.9f,1.0f),
-                new Color(0.6f,0.8f,0.9f,1.0f),
-                new Color(0.2f,0.2f,0.8f,1.0f)
-            };
-            if (currentCount == 0)
-            {
-                Debug.Log("Weird ...");
-            }
-            return cList[currentCount];
-        }
-        else if (currentCount < 20)
+        if (EntropySize)
         {
-            return Color.Lerp(new Color(0.6f,0.3f,0.6f,1.0f), new Color(0.8f, 0.7f, 0.9f, 1.0f), (currentCount - 10) / 10.0f);
+            if (entropyTiles == null) { return Color.black; }
+            int currentCount = entropyTiles[pos].compatibleList.Count;
+
+            if (currentCount < 10)
+            {
+
+                if (currentCount == 0)
+                {
+                    Debug.Log("Weird ...");
+                    return Color.red;
+                }
+                return Color.HSVToRGB((1.0f / 360) * (currentCount * 30), 1, 1); ;
+            }
+            else
+            {
+                return Color.Lerp(Color.white, Color.black, (currentCount - 10) / 10.0f);
+            }
         }
         else
         {
-            return Color.Lerp(new Color(1,1,1,1), new Color(0,0,0,1), (currentCount - 20) / 30.0f);
+            Color color = Color.black;
+            int colorN = 0;
+            foreach (int cID in entropyTiles[pos].getEntropyList())
+            {
+                color += colors[cID];
+                colorN++;
+            }
+            return color/colorN;
         }
     }
     public void SetPixelAt(int x, int y, int newID)
@@ -191,7 +193,7 @@ public class WaveFunctionGrid2D
         Color color = colors[clampedID];
 
         texture.SetPixel(x, y, color);
-        if (newID == -2) { texture.SetPixel(x, y, getColorFromEntropy(new Vector2Int(x, y))); }
+        if (newID == -2) { texture.SetPixel(x, y, getColorFromEntropy(new Vector2Int(x,y),false)); }
         if (newID == -3 ||newID == -1) { texture.SetPixel(x, y, Color.red); }
         updateSpriteEvt.Invoke();
     }
@@ -240,10 +242,17 @@ public class WaveFunctionGrid2D
     {
         return size;
     }
-    public int GetTileAt(Vector2Int pos)
+    public int GetTileAt(ref Vector2Int pos)
     {
-        if (pos.x < 0 || pos.y < 0 || pos.x >= size.x || pos.y >= size.y) return -1;
+        if ((pos.x < 0 || pos.x >= size.x) && isXClamped) { return -1; }
+        if ((pos.y < 0 || pos.y >= size.y) && isYClamped) { return -1; }
+        pos += size;
+        pos = new Vector2Int(pos.x%size.x, pos.y % size.y);
         return gridContent[pos.x, pos.y];
+    }
+    public void ComputeBorderClamp()
+    {
+        
     }
     public void ComputeWaveTile(WaveFunctionGrid2D inputGrid)
     {
@@ -261,7 +270,8 @@ public class WaveFunctionGrid2D
                 {
                     for (int j = min; j <= max; j++)
                     {
-                        tempGrid[max+i,max+j] = inputGrid.GetTileAt(new Vector2Int(x+i,y+j));
+                        Vector2Int newPos = new Vector2Int(x + i, y + j);
+                        tempGrid[max+i,max+j] = inputGrid.GetTileAt(ref newPos);
                     }
                 }
 
@@ -298,7 +308,8 @@ public class WaveFunctionGrid2D
                 {
                     for (int j = min; j <= max; j++)
                     {
-                        tempGrid[max + i, max + j] = GetTileAt(new Vector2Int(x + i, y + j));
+                        Vector2Int newPos = new Vector2Int(x + i, y + j);
+                        tempGrid[max + i, max + j] = GetTileAt(ref newPos);
                     }
                 }
 
@@ -339,7 +350,7 @@ public class WaveFunctionGrid2D
                         Vector2Int localPos = new Vector2Int(x, y);
                         Vector2Int globalPos = entry.Key + localPos;
 
-                        if (GetTileAt(globalPos) == -1) { continue; }
+                        if (GetTileAt(ref globalPos) == -1) { continue; }
 
                         bool hasFoundOneCompatibility = false;
                         foreach (WaveTile2D tileSurround in entropyTiles[globalPos].compatibleList)
@@ -367,10 +378,10 @@ public class WaveFunctionGrid2D
         foreach (Vector2Int pos in posToDo)
         {
             EntropyTile currTile = entropyTiles[pos];
-            if (currTile.compatibleList.Count < minDist)
+            if (currTile.getEntropy() < minDist)
             {
                 lowest = currTile;
-                minDist = currTile.compatibleList.Count;
+                minDist = currTile.getEntropy();
             }
         }
         return lowest;
@@ -396,6 +407,21 @@ public class WaveFunctionGrid2D
         Fill(-2,true);
     }
 
+    public void Reset()
+    {
+        posToDo = new List<Vector2Int>();
+        entropyTiles = new Dictionary<Vector2Int, EntropyTile>();
+
+        //Fill the grid with Any Tile without changing color
+        Fill(-2, false);
+
+        //Fill the infos needed for generation
+        ComputeEntropyFromTiles();
+
+        //Fill the grid with Any Tile but update color this time
+        Fill(-2, true);
+    }
+
     public void Step()
     {
         if (posToDo.Count > 0)
@@ -403,19 +429,34 @@ public class WaveFunctionGrid2D
             EntropyTile lowestEntropyTile = GetLowestEntropyTile();
             Vector2Int currentPos = lowestEntropyTile.pos;
 
-            Debug.Log("Pos at : " + currentPos);
+            //Debug.Log("Pos at : " + currentPos);
 
             if (lowestEntropyTile.compatibleList.Count == 0)
             {
                 SetPixelAt(currentPos.x, currentPos.y, -3);
                 posToDo.Remove(new Vector2Int(currentPos.x, currentPos.y));
+                Reset();
                 return;
             }
 
             WaveTile2D selectedWT = lowestEntropyTile.compatibleList[UnityEngine.Random.Range(0, lowestEntropyTile.compatibleList.Count)];
             SetPixelAt(currentPos.x, currentPos.y, selectedWT.getCenterContent());
-            
+            List<WaveTile2D> toRemoveFromCurrent = new List<WaveTile2D>();
+            foreach (WaveTile2D currTile in lowestEntropyTile.compatibleList)
+            {
+                if (currTile.getCenterContent() != selectedWT.getCenterContent())
+                {
+                    toRemoveFromCurrent.Add(currTile);
+                }
+            }
+            foreach (WaveTile2D currTile in toRemoveFromCurrent)
+            {
+                lowestEntropyTile.compatibleList.Remove(currTile);
+            }
+            toRemoveFromCurrent.Clear();
 
+            //Way too slow
+            //ComputeEntropyFromSurrounding();
 
             //Remove unusable wave tile
             int max = TILESIZE / 2;
@@ -425,24 +466,43 @@ public class WaveFunctionGrid2D
                 for (int y = min; y <= max; y++)
                 {
                     Vector2Int pos = new Vector2Int(currentPos.x+x, currentPos.y + y);
-                    if (GetTileAt(pos) == -1 || (x == 0 && y == 0)) { continue; }
+                    if (GetTileAt(ref pos) == -1 || (x == 0 && y == 0)) { continue; }
                     EntropyTile tileCheck = entropyTiles[pos];
 
                     List<WaveTile2D> toRemove = new List<WaveTile2D>();
 
                     foreach (WaveTile2D wtcheck in tileCheck.compatibleList)
                     {
-                        if (!WaveTile2D.CheckCompatibility(selectedWT, wtcheck, new Vector2Int(x,y)))
+                        bool breakWT = false;
+                        for (int i = min; i <= max; i++)
                         {
-                            toRemove.Add(wtcheck);
+                            for (int j = min; j <= max; j++)
+                            {
+                                Vector2Int globalPos = new Vector2Int(pos.x+i, pos.y + j);
+                                if (GetTileAt(ref globalPos) == -1 || (i == 0 && j == 0)) { continue; }
+                                EntropyTile tileGlobalCheck = entropyTiles[globalPos];
+                                breakWT = false;
+                                foreach (WaveTile2D wtglobalCheck in tileGlobalCheck.compatibleList)
+                                {
+                                    if (WaveTile2D.CheckCompatibility(wtcheck,wtglobalCheck,new Vector2Int(i,j))) { breakWT = true; break; }
+                                }
+                                if (!breakWT) break;
+                            }
+                            if (!breakWT) break;
                         }
+                        if (!breakWT) toRemove.Add(wtcheck);
                     }
-                    foreach (WaveTile2D wtRemove in toRemove)
+
+                    
+                    Debug.Log(toRemove.Count);
+                    while (toRemove.Count > 0)
                     {
-                        tileCheck.compatibleList.Remove(wtRemove);
+                        tileCheck.compatibleList.Remove(toRemove[0]);
+                        toRemove.RemoveAt(0);
+                        
                     }
                     //Refresh Entropy Colors
-                    if(GetTileAt(pos) == -2) { SetPixelAt(pos.x, pos.y, -2); }
+                    if (GetTileAt(ref pos) == -2) { SetPixelAt(pos.x, pos.y, -2); }
                 }
             }
 
