@@ -68,8 +68,8 @@
                 {
                     "name": "",
                     "id": "b74d3bca-e7f8-443a-83a2-91eda6923158",
-                    "path": "<Keyboard>/space",
-                    "interactions": "MultiTap",
+                    "path": "<Keyboard>/alt",
+                    "interactions": "",
                     "processors": "",
                     "groups": "",
                     "action": "Toggle",
