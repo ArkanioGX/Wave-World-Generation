@@ -40,14 +40,14 @@ public class WaveFunctionGrid2D
     {
         public List<WaveTile2D> compatibleList;
         public Vector2Int pos;
-        public bool isTileDone;
+        public bool hasBeenModified;
         private int lastSize;
 
         public EntropyTile(EntropyTile et)
         {
             compatibleList = new List<WaveTile2D>(et.compatibleList);
             pos = et.pos;
-            isTileDone = et.isTileDone;
+            hasBeenModified = et.hasBeenModified;
             lastSize = et.lastSize;
         }
 
@@ -264,10 +264,7 @@ public class WaveFunctionGrid2D
         pos = new Vector2Int(pos.x % size.x, pos.y % size.y);
         return gridContent[pos.x, pos.y];
     }
-    public void ComputeBorderClamp()
-    {
-        
-    }
+ 
     public void ComputeWaveTile(WaveFunctionGrid2D inputGrid)
     {
         
@@ -335,7 +332,7 @@ public class WaveFunctionGrid2D
             for (int y = 0; y < size.y ; y++)
             {
                 EntropyTile et = new EntropyTile();
-                et.isTileDone = false;
+                et.hasBeenModified = true;
                 et.pos = new Vector2Int(x,y);
 
                 //Compatible Creation
@@ -371,6 +368,71 @@ public class WaveFunctionGrid2D
             }
         }
     }
+
+    public void PrecomputeEntropy()
+    {
+        if (!isXClamped && !isYClamped) { return; }
+        for (int x = 0; x < size.x; x++)
+        {
+            for (int y = 0; y < size.y; y++)
+            {
+                Vector2Int centerPos = new Vector2Int(x, y);
+                removeUnusableTileAt(centerPos);
+            }
+        }
+    }
+
+    private void removeUnusableTileAt(Vector2Int centerPos)
+    {
+        if (GetTileAt(ref centerPos) == -1) { return; }
+        EntropyTile centerTile = entropyTiles[centerPos];
+
+        int max = TILESIZE / 2;
+        int min = -max;
+
+        Dictionary<Vector2Int, List<WaveTile2D>> toRemove = new Dictionary<Vector2Int, List<WaveTile2D>>();
+        toRemove.Add(centerPos, new List<WaveTile2D>());
+        //Fill the grid from the input
+        foreach (WaveTile2D wtCenter in centerTile.compatibleList)
+        {
+            bool hasOneCompatible = true;
+            for (int i = min; i <= max; i++)
+            {
+                for (int j = min; j <= max; j++)
+                {
+                    Vector2Int surroundPos = centerPos + new Vector2Int(i, j);
+                    if (GetTileAt(ref surroundPos) == -1 || (i == 0 && j == 0)) { continue; }
+                    Vector2Int surrOffset = new Vector2Int(i, j);
+                    EntropyTile surroundTile = entropyTiles[surroundPos];
+                    if (!surroundTile.hasBeenModified) { continue; }
+                    if (!toRemove.ContainsKey(surroundPos)) { toRemove.Add(surroundPos, new List<WaveTile2D>(surroundTile.compatibleList)); }
+
+                    hasOneCompatible = false;
+                    foreach (WaveTile2D wtSurround in surroundTile.compatibleList)
+                    {
+                        if (WaveTile2D.CheckCompatibility(wtCenter, wtSurround, surrOffset))
+                        {
+                            hasOneCompatible = true;
+                            toRemove[surroundPos].Remove(wtSurround);
+                        }
+                    }
+                    if (!hasOneCompatible) { break; }
+                }
+                if (!hasOneCompatible) { break; }
+            }
+            if (!hasOneCompatible) { toRemove[centerPos].Add(wtCenter); }
+        }
+
+        foreach (KeyValuePair<Vector2Int, List<WaveTile2D>> kvp in toRemove)
+        {
+            EntropyTile etile = entropyTiles[kvp.Key];
+            etile.hasBeenModified = true;
+            foreach (WaveTile2D wt in kvp.Value)
+            {
+                etile.compatibleList.Remove(wt);
+            }
+        }
+    }
     private EntropyTile GetLowestEntropyTile()
     {
         EntropyTile lowest = new EntropyTile();
@@ -378,19 +440,11 @@ public class WaveFunctionGrid2D
         foreach (Vector2Int pos in posToDo)
         {
             EntropyTile currTile = entropyTiles[pos];
-            int currEntropy = currTile.getEntropy();
+            int currEntropy = currTile.compatibleList.Count;
             if (currEntropy < minDist)
             {
                 lowest = currTile;
                 minDist = currEntropy;
-            }
-            else if (currEntropy == minDist)
-            {
-                if (Vector2Int.Distance(lowest.pos,lastPosDone) > Vector2Int.Distance(currTile.pos, lastPosDone))
-                {
-                    lowest = currTile;
-                    minDist = currEntropy;
-                }
             }
         }
         return lowest;
@@ -401,59 +455,6 @@ public class WaveFunctionGrid2D
 
         PRECISION = precisionP == -1 ? (Mathf.Min(size.x, size.y) / 2)-1 : (Mathf.Min(precisionP, Mathf.Min(size.x, size.y) / 2)-1);
     }
-    /*private EntropyTile GetLowestEntropyTile2()
-    {
-        EntropyTile lowest = new EntropyTile();
-        int minDist = 99999999;
-        int minSurrDist = 99999999;
-        foreach (Vector2Int pos in posToDo)
-        {
-            int max = TILESIZE / 2;
-            int min = -max;
-            EntropyTile currTile = entropyTiles[pos];
-            int currDist = currTile.getEntropy();
-
-            if (currDist < minDist)
-            {
-                lowest = entropyTiles[pos];
-                minDist = currDist;
-                minSurrDist = 0;
-                for (int x = min; x <= max; x++)
-                {
-                    for (int y = min; y <= max; y++)
-                    {
-                        Vector2Int surroundPos = pos + new Vector2Int(x, y);
-                        if (GetTileAt(ref surroundPos) == -1) { continue; }
-                        EntropyTile surrTile = entropyTiles[surroundPos];
-                        minSurrDist += surrTile.getEntropy();
-                    }
-                }
-                
-            }
-            else if ( currDist == minDist )
-            {
-                int currSurrDist = 0;
-                for (int x = min; x <= max; x++)
-                {
-                    for (int y = min; y <= max; y++)
-                    {
-                        Vector2Int surroundPos = pos + new Vector2Int(x, y);
-                        if (GetTileAt(ref surroundPos) == -1) { continue; }
-                        EntropyTile surrTile = entropyTiles[surroundPos];
-                        currSurrDist += surrTile.getEntropy();
-
-                    }
-                }
-                if (currSurrDist < minSurrDist)
-                {
-                    lowest = entropyTiles[pos];
-                    minDist = currDist;
-                    minSurrDist = currSurrDist;
-                }
-            }
-        }
-        return lowest;
-    }*/
     public void Generate(WaveFunctionGrid2D inputGrid)
     {
         tiles = new List<WaveTile2D>();
@@ -468,6 +469,7 @@ public class WaveFunctionGrid2D
         //Fill the infos needed for generation
         ComputeWaveTile(inputGrid);
         ComputeEntropyFromTiles();
+        PrecomputeEntropy();
         
 
         //Get new colors
@@ -487,6 +489,7 @@ public class WaveFunctionGrid2D
 
         //Fill the infos needed for generation
         ComputeEntropyFromTiles();
+        PrecomputeEntropy();
 
         //Fill the grid with Any Tile but update color this time
         Fill(-2, true);
@@ -512,181 +515,60 @@ public class WaveFunctionGrid2D
 
             WaveTile2D selectedWT = lowestEntropyTile.compatibleList[UnityEngine.Random.Range(0, lowestEntropyTile.compatibleList.Count)];
             SetPixelAt(currentPos.x, currentPos.y, selectedWT.getCenterContent());
-            List<WaveTile2D> toRemoveFromCurrent = new List<WaveTile2D>();
-            foreach (WaveTile2D currTile in lowestEntropyTile.compatibleList)
+            lowestEntropyTile.compatibleList.Clear();
+            lowestEntropyTile.compatibleList.Add(selectedWT);
+            lowestEntropyTile.hasBeenModified = true;
+
+            int max = TILESIZE / 2;
+            int min = -max;
+
+            for (int x = min; x <= max; x++)
             {
-                if (currTile.getCenterContent() != selectedWT.getCenterContent())
+                for (int y = min; y <= max; y++)
                 {
-                    toRemoveFromCurrent.Add(currTile);
+                    Vector2Int pos = new Vector2Int(currentPos.x + x, currentPos.y + y);
+                    if (GetTileAt(ref pos) == -1 || (x == 0 && y == 0)) { continue; }
+                    EntropyTile tileCheck = entropyTiles[pos];
+                    tileCheck.hasBeenModified = true;
+                    Vector2Int offset = new Vector2Int(x, y);
+                    List<WaveTile2D> toRemove = new List<WaveTile2D>();
+                    foreach (WaveTile2D wt in tileCheck.compatibleList)
+                    {
+                        if (!WaveTile2D.CheckCompatibility(selectedWT, wt, offset))
+                        {
+                            toRemove.Add(wt);
+                        }
+                    }
+                    foreach (WaveTile2D wt in toRemove)
+                    {
+                        tileCheck.compatibleList.Remove(wt);
+                    }
                 }
             }
-            foreach (WaveTile2D currTile in toRemoveFromCurrent)
-            {
-                lowestEntropyTile.compatibleList.Remove(currTile);
-            }
-            toRemoveFromCurrent.Clear();
 
-            
             //Remove unusable wave tile
-            for (int PrecisionN = 1; PrecisionN <= PRECISION; PrecisionN++)
+            for (int PrecisionN = max+1 ; PrecisionN <= PRECISION; PrecisionN++)
             {
                 for (int x = -PrecisionN; x <= PrecisionN; x++)
                 {
                     for (int y = -PrecisionN; y <= PrecisionN; y++)
                     {
-                        if (!(x == PrecisionN ||x == -PrecisionN ||y == PrecisionN || y ==  -PrecisionN)) { continue; }
-                        int max = TILESIZE / 2;
-                        int min = -max;
+                        if (!(Mathf.Abs(x) == PrecisionN || Mathf.Abs(y) == PrecisionN)) { continue; }
                         Vector2Int pos = new Vector2Int(currentPos.x + x, currentPos.y + y);
-                        if (GetTileAt(ref pos) == -1 || (x == 0 && y == 0)) { continue; }
-                        EntropyTile tileCheck = entropyTiles[pos];
-
-                        List<WaveTile2D> toRemove = new List<WaveTile2D>();
-
-                        foreach (WaveTile2D wtcheck in tileCheck.compatibleList)
-                        {
-                            bool breakWT = true;
-                            for (int i = min; i <= max; i++)
-                            {
-                                for (int j = min; j <= max; j++)
-                                {
-                                    Vector2Int globalPos = new Vector2Int(pos.x + i, pos.y + j);
-                                    if (GetTileAt(ref globalPos) == -1 || (i == 0 && j == 0)) { breakWT = true; continue; }
-                                    EntropyTile tileGlobalCheck = entropyTiles[globalPos];
-                                    breakWT = false;
-                                    foreach (WaveTile2D wtglobalCheck in tileGlobalCheck.compatibleList)
-                                    {
-                                        if (WaveTile2D.CheckCompatibility(wtcheck, wtglobalCheck, new Vector2Int(i, j))) { breakWT = true; break; }
-                                    }
-                                    if (!breakWT) break;
-                                }
-                                if (!breakWT) break;
-                            }
-                            if (!breakWT) toRemove.Add(wtcheck);
-                        }
-
-
-                        //Debug.Log(toRemove.Count);
-                        while (toRemove.Count > 0)
-                        {
-                            tileCheck.compatibleList.Remove(toRemove[0]);
-                            toRemove.RemoveAt(0);
-
-                        }
-                        //Refresh Entropy Colors
-                        if (GetTileAt(ref pos) == -2) { SetPixelAt(pos.x, pos.y, -2); }
+                        removeUnusableTileAt(pos);
                     }
                 }
             }
-
-            /*
-            //List in a spiral
-            List<EntropyTile> TileToComputeCompatible = new List<EntropyTile>();
-            Vector2Int currSpiralPos = new Vector2Int(-PRECISION, PRECISION);
-            int dir = 0;
-            Vector2Int[] dirList = {Vector2Int.right, Vector2Int.down, Vector2Int.left,Vector2Int.up };
-            int maxDist = PRECISION;
-            int listSize = (int)(Mathf.Pow(PRECISION, 2) + 1)* (int)(Mathf.Pow(PRECISION, 2) + 1) ;
-            bool XSkip = false;
-            for (int i = 0; i < listSize; i++)
+            foreach(Vector2Int pos in posToDo)
             {
-                Vector2Int tilePos = currentPos + currSpiralPos;
-                if (GetTileAt(ref tilePos) != -1)
-                {
-                    TileToComputeCompatible.Add(entropyTiles[tilePos]);
-                }
-                Vector2Int nextTheoriticalPos = currSpiralPos + dirList[dir];
-                //If next pos going out of range change directions
-                if (((nextTheoriticalPos.x < -maxDist || nextTheoriticalPos.x > maxDist) && !XSkip) || (nextTheoriticalPos.y < -maxDist || nextTheoriticalPos.y > maxDist))
-                {
-                    XSkip = false;
-                    dir = (dir + 1) % dirList.Length;
-                    if (dir == 3)
-                    {
-                        maxDist--;
-                        XSkip = true;
-                    }
-                }
-                currSpiralPos += dirList[dir];
+                SetPixelAt(pos.x, pos.y,-2);
             }
 
-            //Remove Unusable tiles
-            for (int t = TileToComputeCompatible.Count-1; t >= 0; t--)
+            foreach (Vector2Int pos in entropyTiles.Keys)
             {
-                EntropyTile tileCheck = TileToComputeCompatible[t];
-                Vector2Int pos = tileCheck.pos;
-
-                int max = TILESIZE / 2;
-                int min = -max;
-
-                Dictionary<Vector2Int, List<WaveTile2D>> ToRemove = new Dictionary<Vector2Int, List<WaveTile2D>>();
-                Dictionary<Vector2Int, List<WaveTile2D>> TempToRemove = new Dictionary<Vector2Int, List<WaveTile2D>>();
-                for (int i = min; i <= max; i++)
-                {
-                    for (int j = min; j <= max; j++)
-                    {
-                        Vector2Int globalPos = new Vector2Int(pos.x + i, pos.y + j);
-                        if (GetTileAt(ref globalPos) == -1) { continue; }
-                        EntropyTile tileGlobalCheck = entropyTiles[globalPos];
-                        ToRemove.Add(tileGlobalCheck.pos, new List<WaveTile2D>());
-                        TempToRemove.Add(tileGlobalCheck.pos, new List<WaveTile2D>());
-                        foreach (WaveTile2D wtglobalCheck in tileGlobalCheck.compatibleList)
-                        {
-                            ToRemove[tileGlobalCheck.pos].Add(wtglobalCheck);
-                        }
-                    }
-                }
-
-                foreach (WaveTile2D wtcheck in tileCheck.compatibleList)
-                {
-                    //Clear temporary
-                    foreach (KeyValuePair<Vector2Int,List<WaveTile2D>> kValue in TempToRemove)
-                    {
-                        kValue.Value.Clear();
-                    }
-                    bool hasAllCompatible = true;
-                    for (int i = min; i <= max; i++)
-                    {
-                        for (int j = min; j <= max; j++)
-                        {
-                            Vector2Int globalPos = new Vector2Int(pos.x + i, pos.y + j);
-                            if (GetTileAt(ref globalPos) == -1 || (i == 0 && j == 0)) { continue; }
-                            EntropyTile tileGlobalCheck = entropyTiles[globalPos];
-                            bool hasAtLeastOneCompatible = false;
-                            foreach (WaveTile2D wtglobalCheck in tileGlobalCheck.compatibleList)
-                            {
-                                if (WaveTile2D.CheckCompatibility(wtcheck, wtglobalCheck, new Vector2Int(i, j))) {
-                                    TempToRemove[tileGlobalCheck.pos].Add(wtglobalCheck);
-                                    hasAtLeastOneCompatible = true;
-                                }
-                            }
-                            if (!hasAtLeastOneCompatible) { hasAllCompatible = false;}
-                        }
-                    }
-                    if (hasAllCompatible)
-                    {
-                        //Remove the kept value from erasure
-                        foreach (KeyValuePair<Vector2Int, List<WaveTile2D>> kValue in TempToRemove)
-                        {
-                            foreach (WaveTile2D wt in kValue.Value)
-                            {
-                                ToRemove[kValue.Key].Remove(wt);
-                            }
-                        }
-                        ToRemove[tileCheck.pos].Remove(wtcheck);
-                    }
-                }
-                //Removes all incompatible tile
-                foreach (KeyValuePair<Vector2Int,List<WaveTile2D>> kValuePair in ToRemove ){
-                    EntropyTile et = entropyTiles[kValuePair.Key];
-                    foreach (WaveTile2D wt in kValuePair.Value)
-                    {
-                        et.compatibleList.Remove(wt);
-                    }
-                }
-                //Refresh Entropy Colors
-                if (GetTileAt(ref pos) == -2) { SetPixelAt(pos.x, pos.y, -2); }
-            }*/
+                EntropyTile tile = entropyTiles[pos];
+                tile.hasBeenModified = false;
+            }
             //Remove the pos
             lastPosDone = currentPos;
             posToDo.Remove(new Vector2Int(currentPos.x, currentPos.y));
@@ -694,7 +576,7 @@ public class WaveFunctionGrid2D
         else
         {
             Debug.Log("The grid should be filled");
-            Reset();
+            //Reset();
         }
     }
     

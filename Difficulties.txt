@@ -1,2 +1,6 @@
 Difficultie :
 Algorithm not finding any compatibility for a pixel resulting in a incomplete image
+
+Slow Program
+
+Wrong pattern placed resulting in a error
