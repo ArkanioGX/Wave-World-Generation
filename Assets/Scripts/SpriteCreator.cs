@@ -1,6 +1,8 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 
 
@@ -13,6 +15,20 @@ public class SpriteCreator : MonoBehaviour
     private BoxCollider boxCollider;
     [SerializeField]
     private Color[] ColorToUse;
+    public InputActionAsset actions;
+
+    [Serializable]
+    public struct SpriteInfos
+    {
+        public Sprite sprite;
+        public bool xClamp;
+        public bool yClamp;
+    }
+
+    [SerializeField]
+    private SpriteInfos[] SpriteAvailables;
+    private int spriteID = 0;
+
     [SerializeField]
     private float sizeModifier;
     [SerializeField]
@@ -29,9 +45,11 @@ public class SpriteCreator : MonoBehaviour
         
         spriteRenderer = GetComponent<SpriteRenderer>();
         boxCollider = GetComponent<BoxCollider>();
-        if (spriteRenderer.sprite != null)
+        if (SpriteAvailables.Length > 0)
         {
-            grid = SpriteToGrid(spriteRenderer.sprite);
+            grid = SpriteToGrid(SpriteAvailables[0].sprite);
+            grid.isXClamped = SpriteAvailables[0].xClamp;
+            grid.isYClamped = SpriteAvailables[0].yClamp;
             textureSize = grid.size;
             GetComponent<SpriteDrawer>().isActive = false;
         }
@@ -49,6 +67,12 @@ public class SpriteCreator : MonoBehaviour
        
         float maxTextureSize = Mathf.Max(textureSize.x, textureSize.y);
         transform.localScale = Vector3.one*(sizeModifier*(128.0f/maxTextureSize));
+
+        if (actions != null)
+        {
+            actions.Enable();
+            actions.FindActionMap("Generation").FindAction("SwapImage").performed += OnSwap;
+        }
     }
 
     private WaveFunctionGrid2D SpriteToGrid(Sprite s)
@@ -106,5 +130,32 @@ public class SpriteCreator : MonoBehaviour
             Mathf.Clamp(gridPos.x, 0, grid.size.x),
             Mathf.Clamp(gridPos.y, 0, grid.size.y));
         return gridPos;
+    }
+
+    private void OnSwap(InputAction.CallbackContext context)
+    {
+        if (SpriteAvailables.Length > 0)
+        {
+            spriteID = (spriteID + (int)context.ReadValue<float>() + SpriteAvailables.Length) % SpriteAvailables.Length;
+            grid = SpriteToGrid(SpriteAvailables[spriteID].sprite);
+            grid.isXClamped = SpriteAvailables[spriteID].xClamp;
+            grid.isYClamped = SpriteAvailables[spriteID].yClamp;
+            textureSize = grid.size;
+            GetComponent<SpriteDrawer>().isActive = false;
+        }
+        else if (grid == null)
+        {
+            createGrid();
+            spriteRenderer.sprite = grid.GetSprite();
+        }
+
+        ApplyChanges();
+        if (boxCollider)
+        {
+            boxCollider.size = new Vector3(textureSize.x / 100.0f, textureSize.y / 100.0f, 0.01f);
+        }
+
+        float maxTextureSize = Mathf.Max(textureSize.x, textureSize.y);
+        transform.localScale = Vector3.one * (sizeModifier * (128.0f / maxTextureSize));
     }
 }

@@ -887,6 +887,8 @@ MonoBehaviour:
   - {r: 1, g: 1, b: 1, a: 1}
   - {r: 1, g: 0.3160377, b: 0.3160377, a: 1}
   - {r: 0, g: 0.87953043, b: 1, a: 1}
+  actions: {fileID: 0}
+  SpriteAvailables: []
   sizeModifier: 3
   textureSize: {x: 3, y: 3}
 --- !u!212 &1030847177
@@ -1232,6 +1234,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ColorToUse: []
+  actions: {fileID: 0}
+  SpriteAvailables: []
   sizeModifier: 10
   textureSize: {x: 32, y: 32}
 --- !u!212 &1352728684
@@ -1316,9 +1320,7 @@ MonoBehaviour:
   GOInput: {fileID: 1385354147}
   actions: {fileID: -944628639613478452, guid: 8d023acf81e878b4ba01c118bc1e0c33, type: 3}
   PatternSize: 3
-  Precision: 10
-  XClamp: 0
-  YClamp: 1
+  Precision: 5
   doTileRotateOrMirror: 0
 --- !u!1 &1385354147
 GameObject:
@@ -1356,6 +1358,17 @@ MonoBehaviour:
   - {r: 1, g: 1, b: 1, a: 1}
   - {r: 1, g: 0, b: 0.9504018, a: 1}
   - {r: 0, g: 0.87953043, b: 1, a: 1}
+  actions: {fileID: -944628639613478452, guid: 8d023acf81e878b4ba01c118bc1e0c33, type: 3}
+  SpriteAvailables:
+  - sprite: {fileID: 21300000, guid: abe0f034535fec94ab17a4fb4b4c91ab, type: 3}
+    xClamp: 0
+    yClamp: 0
+  - sprite: {fileID: 21300000, guid: 8e46698442a68df41931c59c8359ea14, type: 3}
+    xClamp: 0
+    yClamp: 1
+  - sprite: {fileID: 21300000, guid: 1a778ca0a2b98674db261a91a0013d06, type: 3}
+    xClamp: 0
+    yClamp: 0
   sizeModifier: 10
   textureSize: {x: 10, y: 5}
 --- !u!212 &1385354149
@@ -1604,7 +1617,7 @@ GameObject:
   - component: {fileID: 2093131902}
   - component: {fileID: 2093131901}
   m_Layer: 0
-  m_Name: Display Input (1)
+  m_Name: background
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

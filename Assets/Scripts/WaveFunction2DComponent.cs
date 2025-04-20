@@ -371,7 +371,19 @@ public class WaveFunctionGrid2D
 
     public void PrecomputeEntropy()
     {
-        if (!isXClamped && !isYClamped) { return; }
+        if (!isXClamped && !isYClamped)
+        {
+            for (int x = 0; x < size.x; x++)
+            {
+                for (int y = 0; y < size.y; y++)
+                {
+                    Vector2Int centerPos = new Vector2Int(x, y);
+                    EntropyTile et = entropyTiles[centerPos];
+                    et.compatibleList = new List<WaveTile2D>(tiles);
+                }
+            }
+            return;
+        }
         for (int x = 0; x < size.x; x++)
         {
             for (int y = 0; y < size.y; y++)
@@ -435,8 +447,8 @@ public class WaveFunctionGrid2D
     }
     private EntropyTile GetLowestEntropyTile()
     {
-        EntropyTile lowest = new EntropyTile();
-        int minDist = tiles.Count;
+        EntropyTile lowest = entropyTiles[posToDo[0]];
+        int minDist = lowest.compatibleList.Count;
         foreach (Vector2Int pos in posToDo)
         {
             EntropyTile currTile = entropyTiles[pos];
@@ -575,7 +587,6 @@ public class WaveFunctionGrid2D
         }
         else
         {
-            Debug.Log("The grid should be filled");
             //Reset();
         }
     }
@@ -779,7 +790,6 @@ public class WaveFunction2DComponent : MonoBehaviour
     [SerializeField]
     private int Precision = 5;
     [SerializeField]
-    private bool XClamp = false, YClamp = false;
     public bool doTileRotateOrMirror = false;
 
     private void Start()
@@ -789,18 +799,17 @@ public class WaveFunction2DComponent : MonoBehaviour
         actions.FindActionMap("Generation").FindAction("Hold").performed += OnHoldDown;
         actions.FindActionMap("Generation").FindAction("ReleaseHold").performed += OnHoldUp;
         actions.FindActionMap("Generation").FindAction("Toggle").performed += OnToggle;
+        actions.FindActionMap("Generation").FindAction("ChangePrecision").performed += OnPrecision;
     }
 
     public void LaunchFunction()
     {
         currentGrid = GetComponent<SpriteCreator>().grid;
-        currentGrid.isXClamped = XClamp;
-        currentGrid.isYClamped = YClamp;
+        inputGrid = GOInput.GetComponent<SpriteCreator>().grid;
+        currentGrid.isXClamped = inputGrid.isXClamped;
+        currentGrid.isYClamped = inputGrid.isYClamped;
         currentGrid.TILESIZE = PatternSize;
         currentGrid.setPrecision(Precision);
-        inputGrid = GOInput.GetComponent<SpriteCreator>().grid;
-        inputGrid.isXClamped = XClamp;
-        inputGrid.isYClamped = YClamp;
 
         currentGrid.Generate(inputGrid);
     }
@@ -820,6 +829,12 @@ public class WaveFunction2DComponent : MonoBehaviour
         {
             currentGrid.Step();
         }
+    }
+
+    private void OnPrecision(InputAction.CallbackContext context)
+    {
+        Precision += (int)context.ReadValue<float>();
+        Debug.Log(Precision);
     }
 
     private void OnHoldDown(InputAction.CallbackContext context)
